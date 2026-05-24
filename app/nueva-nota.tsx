@@ -79,6 +79,7 @@ export default function NuevaNotaScreen() {
   const addNote = useNotesStore((state) => state.addNote);
   const addChecklist = useNotesStore((state) => state.addChecklist);
   const addIdea = useNotesStore((state) => state.addIdea);
+  const storeError = useNotesStore((state) => state.error);
 
   const [entryType, setEntryType] = useState<EntryType>('note');
   const [title, setTitle] = useState('');
@@ -94,7 +95,7 @@ export default function NuevaNotaScreen() {
 
   const calendarDays = useMemo(() => buildCalendarDays(calendarMonth), [calendarMonth]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const normalizedTitle = title.trim();
     const normalizedContent = content.trim();
     const normalizedTaskItems = parseChecklistLines(taskLines);
@@ -133,8 +134,11 @@ export default function NuevaNotaScreen() {
         endDate: endDateIso,
       };
 
-      addNote(note);
-      router.replace(`/(tabs)/notas/${id}`);
+      const created = await addNote(note);
+
+      if (created) {
+        router.replace(`/(tabs)/notas/${created.id}`);
+      }
       return;
     }
 
@@ -150,8 +154,11 @@ export default function NuevaNotaScreen() {
         endDate: endDateIso,
       };
 
-      addChecklist(checklist);
-      router.replace(`/(tabs)/checklists/${id}`);
+      const created = await addChecklist(checklist);
+
+      if (created) {
+        router.replace(`/(tabs)/checklists/${created.id}`);
+      }
       return;
     }
 
@@ -168,8 +175,11 @@ export default function NuevaNotaScreen() {
       endDate: endDateIso,
     };
 
-    addIdea(idea);
-    router.replace(`/(tabs)/ideas/${id}`);
+    const created = await addIdea(idea);
+
+    if (created) {
+      router.replace(`/(tabs)/ideas/${created.id}`);
+    }
   };
 
   const openCalendar = (target: DateField) => {
@@ -466,6 +476,7 @@ export default function NuevaNotaScreen() {
                   </LinearGradient>
                 </Pressable>
               </View>
+              {storeError ? <Text style={styles.submitErrorText}>{storeError}</Text> : null}
             </LinearGradient>
           </ScrollView>
         </View>
@@ -1005,6 +1016,11 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     fontWeight: '700',
     color: '#F8FAFF',
+  },
+  submitErrorText: {
+    fontSize: fontSizes.sm,
+    lineHeight: 22,
+    color: '#FCA5A5',
   },
   modalBackdrop: {
     flex: 1,

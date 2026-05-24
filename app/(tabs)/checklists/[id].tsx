@@ -4,31 +4,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { fontSizes, spacing } from '../../../constants/theme';
 import { useNotesStore } from '../../../store/notesStore';
-import type { ChecklistNote } from '../../../types';
-
-const SAMPLE_CHECKLISTS: ChecklistNote[] = [
-  {
-    id: 'sample-checklist-1',
-    type: 'checklist',
-    title: 'Corregir navegación Expo Router',
-    items: [
-      { id: '1', label: 'Revisar layout', completed: true },
-      { id: '2', label: 'Ocultar rutas dinámicas', completed: true },
-      { id: '3', label: 'Probar iPhone', completed: true },
-      { id: '4', label: 'Limpiar warnings', completed: false },
-    ],
-    createdAt: '2026-05-10T09:30:00.000Z',
-    updatedAt: '2026-05-12T09:30:00.000Z',
-  },
-];
 
 export default function ChecklistDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const checklists = useNotesStore((state) => state.checklists);
   const deleteChecklist = useNotesStore((state) => state.deleteChecklist);
-  const checklist =
-    checklists.find((entry) => entry.id === id) ??
-    SAMPLE_CHECKLISTS.find((entry) => entry.id === id);
+  const error = useNotesStore((state) => state.error);
+  const checklist = checklists.find((entry) => entry.id === id);
 
   const handleDelete = () => {
     if (!checklist || !checklists.find((entry) => entry.id === id)) {
@@ -41,9 +23,15 @@ export default function ChecklistDetailScreen() {
       {
         text: 'Eliminar',
         style: 'destructive',
-        onPress: () => {
-          deleteChecklist(checklist.id);
-          router.back();
+        onPress: async () => {
+          const deleted = await deleteChecklist(checklist.id);
+
+          if (deleted) {
+            router.back();
+            return;
+          }
+
+          Alert.alert('No se pudo eliminar', error ?? 'Inténtalo de nuevo en unos segundos.');
         },
       },
     ]);

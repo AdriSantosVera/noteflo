@@ -1,0 +1,300 @@
+{
+  "info": {
+    "_postman_id": "7dc4012d-8f72-4a48-8479-8b8aa0f9a8f7",
+    "name": "NoteFlow API",
+    "description": "Coleccion base para probar el CRUD de notas del backend NoteFlow API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "noteId",
+      "value": ""
+    },
+    {
+      "key": "checklistId",
+      "value": ""
+    },
+    {
+      "key": "itemId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Notas",
+      "item": [
+        {
+          "name": "Crear nota",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Mi primera nota\",\n  \"type\": \"note\",\n  \"content\": \"Contenido de prueba desde Postman\",\n  \"color\": \"#67D8FF\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notes"
+              ]
+            },
+            "description": "Crea una nota de tipo note. Copia el id de la respuesta en la variable noteId para reutilizarlo en las siguientes requests."
+          }
+        },
+        {
+          "name": "Listar notas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notes"
+              ]
+            },
+            "description": "Devuelve todas las notas ordenadas por fecha de creacion descendente."
+          }
+        },
+        {
+          "name": "Obtener nota por id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/{{noteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notes",
+                "{{noteId}}"
+              ]
+            },
+            "description": "Obtiene una nota concreta usando la variable noteId."
+          }
+        },
+        {
+          "name": "Actualizar nota",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Nota actualizada desde Postman\",\n  \"content\": \"Nuevo contenido actualizado\",\n  \"color\": \"#7F7CFF\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/{{noteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notes",
+                "{{noteId}}"
+              ]
+            },
+            "description": "Actualiza title, content y color de la nota indicada en noteId."
+          }
+        },
+        {
+          "name": "Eliminar nota",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/{{noteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notes",
+                "{{noteId}}"
+              ]
+            },
+            "description": "Elimina la nota indicada en noteId. La respuesta correcta es 204 No Content."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Checklist Items",
+      "item": [
+        {
+          "name": "Crear checklist",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Checklist desde Postman\",\n  \"type\": \"checklist\",\n  \"content\": \"Checklist de prueba para items\",\n  \"color\": \"#67D8FF\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notes"
+              ]
+            },
+            "description": "Crea una nota de tipo checklist. Copia el id devuelto en la variable checklistId."
+          }
+        },
+        {
+          "name": "Listar items de checklist",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/{{checklistId}}/checklist-items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notes",
+                "{{checklistId}}",
+                "checklist-items"
+              ]
+            },
+            "description": "Devuelve todos los items asociados a la checklist indicada por checklistId."
+          }
+        },
+        {
+          "name": "Crear item de checklist",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Definir endpoints de checklist items\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/{{checklistId}}/checklist-items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notes",
+                "{{checklistId}}",
+                "checklist-items"
+              ]
+            },
+            "description": "Crea un item y devuelve su id. Copia ese valor en la variable itemId."
+          }
+        },
+        {
+          "name": "Completar item",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_completed\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/checklist-items/{{itemId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "checklist-items",
+                "{{itemId}}"
+              ]
+            },
+            "description": "Marca el item indicado en itemId como completado."
+          }
+        },
+        {
+          "name": "Descompletar item",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_completed\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/checklist-items/{{itemId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "checklist-items",
+                "{{itemId}}"
+              ]
+            },
+            "description": "Marca el item indicado en itemId como no completado."
+          }
+        },
+        {
+          "name": "Eliminar item",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/checklist-items/{{itemId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "checklist-items",
+                "{{itemId}}"
+              ]
+            },
+            "description": "Elimina el item indicado por itemId. La respuesta correcta es 204 No Content."
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -4,33 +4,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { fontSizes, spacing } from '../../../constants/theme';
 import { useNotesStore } from '../../../store/notesStore';
-import type { Note } from '../../../types';
-
-const SAMPLE_NOTES: Note[] = [
-  {
-    id: 'sample-note-1',
-    type: 'note',
-    title: 'Corregir navegación Expo Router',
-    content: 'Ajustar stack, tabs y rutas dinámicas para que el flujo funcione en iPhone.',
-    createdAt: '2026-05-10T09:30:00.000Z',
-    updatedAt: '2026-05-12T09:30:00.000Z',
-  },
-  {
-    id: 'sample-note-2',
-    type: 'note',
-    title: 'Documentar Zustand',
-    content: 'Explicar cómo separar stores globales de la lógica visual por pantalla.',
-    createdAt: '2026-05-10T11:20:00.000Z',
-    updatedAt: '2026-05-11T11:20:00.000Z',
-  },
-];
 
 export default function NoteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const notes = useNotesStore((state) => state.notes);
   const deleteNote = useNotesStore((state) => state.deleteNote);
+  const error = useNotesStore((state) => state.error);
 
-  const note = notes.find((entry) => entry.id === id) ?? SAMPLE_NOTES.find((entry) => entry.id === id);
+  const note = notes.find((entry) => entry.id === id);
 
   const handleDelete = () => {
     if (!note || !notes.find((entry) => entry.id === id)) {
@@ -43,9 +24,15 @@ export default function NoteDetailScreen() {
       {
         text: 'Eliminar',
         style: 'destructive',
-        onPress: () => {
-          deleteNote(note.id);
-          router.back();
+        onPress: async () => {
+          const deleted = await deleteNote(note.id);
+
+          if (deleted) {
+            router.back();
+            return;
+          }
+
+          Alert.alert('No se pudo eliminar', error ?? 'Inténtalo de nuevo en unos segundos.');
         },
       },
     ]);

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Animated,
   Modal,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -21,7 +22,7 @@ import { MiniCalendar } from '../../../components/ui/MiniCalendar';
 import { SectionHeader } from '../../../components/ui/SectionHeader';
 import { StatCard } from '../../../components/ui/StatCard';
 import { useNotesStore } from '../../../store/notesStore';
-import type { Note } from '../../../types';
+import type { AnyNote } from '../../../types';
 
 type WeeklyBar = {
   label: string;
@@ -101,29 +102,6 @@ type SessionOption = {
 const FOCUS_TOTAL_MINUTES = 240;
 const FOCUS_DONE_MINUTES = 155;
 const FOCUS_PROGRESS = FOCUS_DONE_MINUTES / FOCUS_TOTAL_MINUTES;
-
-const WEEKLY_DATA: WeeklyBar[] = [
-  { label: 'L', value: 48 },
-  { label: 'M', value: 62 },
-  { label: 'X', value: 54 },
-  { label: 'J', value: 82, accent: true },
-  { label: 'V', value: 73 },
-  { label: 'S', value: 31 },
-  { label: 'D', value: 24 },
-];
-
-const METRICS: MetricCard[] = [
-  { id: 'notes', title: 'Apuntes', value: '12', detail: 'guardados', accent: '#67E8F9' },
-  { id: 'tasks', title: 'Tareas', value: '5', detail: 'pendientes', accent: '#60A5FA' },
-  { id: 'ideas', title: 'Ideas', value: '8', detail: 'propuestas', accent: '#A78BFA' },
-  { id: 'sprint', title: 'Sprint', value: '64%', detail: 'completado', accent: '#22D3EE' },
-];
-
-const ACTIVITY_FEED: ActivityItem[] = [
-  { id: 'activity-1', title: 'Corregir navegación Expo Router', type: 'Tarea técnica', time: 'Hoy, 9:30' },
-  { id: 'activity-2', title: 'Documentar Zustand', type: 'Apunte DAM', time: 'Ayer, 11:20' },
-  { id: 'activity-3', title: 'Diseño dashboard', type: 'Idea de interfaz', time: 'Ayer, 18:45' },
-];
 
 const ANALYSIS_CARDS: AnalysisCard[] = [
   {
@@ -216,35 +194,12 @@ const SESSION_OPTIONS: SessionOption[] = [
   { id: 'custom', label: 'Personalizado', minutes: 75 },
 ];
 
-const SAMPLE_NOTES: Note[] = [
-  {
-    id: 'sample-note-1',
-    type: 'note',
-    title: 'Corregir navegación Expo Router',
-    content: 'Ajustar stack, tabs y rutas dinámicas para que el flujo funcione en iPhone.',
-    createdAt: '2026-05-10T09:30:00.000Z',
-    updatedAt: '2026-05-12T09:30:00.000Z',
-  },
-  {
-    id: 'sample-note-2',
-    type: 'note',
-    title: 'Documentar Zustand',
-    content: 'Explicar cómo separar stores globales de la lógica visual por pantalla.',
-    createdAt: '2026-05-10T11:20:00.000Z',
-    updatedAt: '2026-05-11T11:20:00.000Z',
-  },
-  {
-    id: 'sample-note-3',
-    type: 'note',
-    title: 'Diseño dashboard',
-    content: 'Definir métricas, jerarquías y sensación premium para NoteFlow Dev.',
-    createdAt: '2026-05-10T18:45:00.000Z',
-    updatedAt: '2026-05-11T18:45:00.000Z',
-  },
-];
-
 export default function NotesIndexScreen() {
   const notes = useNotesStore((state) => state.notes);
+  const checklists = useNotesStore((state) => state.checklists);
+  const ideas = useNotesStore((state) => state.ideas);
+  const isLoading = useNotesStore((state) => state.isLoading);
+  const error = useNotesStore((state) => state.error);
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
   const [isChartVisible, setIsChartVisible] = useState(false);
   const [isFocusModalVisible, setIsFocusModalVisible] = useState(false);
@@ -258,10 +213,19 @@ export default function NotesIndexScreen() {
     isPaused: boolean;
   } | null>(null);
   const [focusSessionOpacity] = useState(() => new Animated.Value(1));
-  const noteSource = notes.length > 0 ? notes : SAMPLE_NOTES;
-  const recentNotes = noteSource.slice(0, 3);
+  const allEntries = useMemo<AnyNote[]>(
+    () =>
+      [...notes, ...checklists, ...ideas].sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      ),
+    [checklists, ideas, notes]
+  );
+  const recentNotes = notes.slice(0, 3);
+  const weeklyData = useMemo(() => buildWeeklyBars(allEntries), [allEntries]);
   const calendarDays = buildCurrentWeek({
-    activeIndices: noteSource.length > 0 ? [0, 1, 3, 4, 6] : [1, 2, 4, 5],
+    activeIndices: weeklyData
+      .map((day, index) => (day.value > 12 ? index : -1))
+      .filter((index) => index >= 0),
   });
   const monthlyCalendar = useMemo(
     () =>
@@ -273,10 +237,65 @@ export default function NotesIndexScreen() {
     [calendarDays]
   );
 
-  const metrics = METRICS.map((metric) =>
-    metric.id === 'notes' && notes.length > 0
-      ? { ...metric, value: String(notes.length) }
-      : metric
+  const totalChecklistItems = checklists.reduce(
+    (acc, checklist) => acc + checklist.items.length,
+    0
+  );
+  const completedChecklistItems = checklists.reduce(
+    (acc, checklist) =>
+      acc + checklist.items.filter((item) => item.completed).length,
+    0
+  );
+  const pendingChecklistItems = Math.max(
+    0,
+    totalChecklistItems - completedChecklistItems
+  );
+  const sprintProgress =
+    totalChecklistItems > 0
+      ? Math.round((completedChecklistItems / totalChecklistItems) * 100)
+      : 0;
+  const metrics = useMemo(
+    () => [
+      {
+        id: 'notes',
+        title: 'Apuntes',
+        value: String(notes.length),
+        detail: 'guardados',
+        accent: '#67E8F9',
+      },
+      {
+        id: 'tasks',
+        title: 'Tareas',
+        value: String(pendingChecklistItems),
+        detail: 'pendientes',
+        accent: '#60A5FA',
+      },
+      {
+        id: 'ideas',
+        title: 'Ideas',
+        value: String(ideas.length),
+        detail: 'propuestas',
+        accent: '#A78BFA',
+      },
+      {
+        id: 'sprint',
+        title: 'Sprint',
+        value: `${sprintProgress}%`,
+        detail: 'completado',
+        accent: '#22D3EE',
+      },
+    ],
+    [ideas.length, notes.length, pendingChecklistItems, sprintProgress]
+  );
+  const activityFeed = useMemo<ActivityItem[]>(
+    () =>
+      allEntries.slice(0, 3).map((entry) => ({
+        id: entry.id,
+        title: entry.title,
+        type: resolveActivityType(entry.type),
+        time: formatRelativeTimestamp(entry.updatedAt),
+      })),
+    [allEntries]
   );
   const focusRemainingMinutes = Math.max(0, FOCUS_TOTAL_MINUTES - FOCUS_DONE_MINUTES);
   const selectedFocus = FOCUS_OPTIONS.find((option) => option.id === selectedFocusId) ?? FOCUS_OPTIONS[0];
@@ -385,12 +404,18 @@ export default function NotesIndexScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <View style={[styles.container, Platform.OS === 'web' ? styles.containerWeb : null]}>
         <LinearGradient colors={['rgba(59, 130, 246, 0.18)', 'rgba(59, 130, 246, 0)']} end={{ x: 1, y: 1 }} start={{ x: 0, y: 0 }} style={[styles.orb, styles.orbPrimary]} />
         <LinearGradient colors={['rgba(167, 139, 250, 0.16)', 'rgba(167, 139, 250, 0)']} end={{ x: 1, y: 1 }} start={{ x: 0, y: 0 }} style={[styles.orb, styles.orbSecondary]} />
         <LinearGradient colors={['rgba(34, 211, 238, 0.14)', 'rgba(34, 211, 238, 0)']} end={{ x: 1, y: 1 }} start={{ x: 0, y: 0 }} style={[styles.orb, styles.orbTertiary]} />
 
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            Platform.OS === 'web' ? styles.scrollContentWeb : null,
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
           <SectionHeader
             eyebrow="NoteFlow Dev"
             title="¿Qué quieres construir hoy?"
@@ -574,7 +599,7 @@ export default function NotesIndexScreen() {
                 </Pressable>
               </View>
 
-              <MiniBarChart data={WEEKLY_DATA} height={64} />
+              <MiniBarChart data={weeklyData} height={64} />
             </GlassPanel>
           </Pressable>
 
@@ -596,7 +621,17 @@ export default function NotesIndexScreen() {
               title="Apuntes recientes"
               subtitle="Accede rápido a lo último que estás organizando."
             />
-            {recentNotes.length > 0 ? (
+            {isLoading && recentNotes.length === 0 ? (
+              <EmptyState
+                title="Cargando apuntes"
+                description="Estamos sincronizando tu dashboard con la API."
+              />
+            ) : error && recentNotes.length === 0 ? (
+              <EmptyState
+                title="No se pudo cargar la información"
+                description={error}
+              />
+            ) : recentNotes.length > 0 ? (
               <View style={styles.notesColumn}>
                 {recentNotes.map((note) => (
                   <Pressable
@@ -627,10 +662,10 @@ export default function NotesIndexScreen() {
               subtitle="Actividad reciente para mantener el foco sin perder contexto."
             />
             <GlassPanel style={styles.activityPanel} contentStyle={styles.activityPanelContent}>
-              {ACTIVITY_FEED.map((item, index) => (
+              {activityFeed.map((item, index) => (
                 <View
                   key={item.id}
-                  style={[styles.activityRow, index < ACTIVITY_FEED.length - 1 ? styles.activityRowBorder : null]}
+                  style={[styles.activityRow, index < activityFeed.length - 1 ? styles.activityRowBorder : null]}
                 >
                   <View style={styles.activityCopy}>
                     <Text style={styles.activityItemTitle}>{item.title}</Text>
@@ -1025,7 +1060,14 @@ export default function NotesIndexScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#070A12' },
   container: { flex: 1, backgroundColor: '#070A12' },
+  containerWeb: { alignItems: 'center' },
   scrollContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: 140, gap: spacing.xl },
+  scrollContentWeb: {
+    width: '100%',
+    maxWidth: 1180,
+    alignSelf: 'center',
+    paddingBottom: 160,
+  },
   orb: { position: 'absolute', borderRadius: 999 },
   orbPrimary: { top: -40, right: -30, width: 240, height: 240 },
   orbSecondary: { top: 250, left: -80, width: 210, height: 210 },
@@ -1917,6 +1959,82 @@ function formatMinutes(totalMinutes: number) {
   }
 
   return `${minutes}m`;
+}
+
+function resolveActivityType(type: AnyNote['type']) {
+  if (type === 'checklist') {
+    return 'Tarea técnica';
+  }
+
+  if (type === 'idea') {
+    return 'Idea de interfaz';
+  }
+
+  return 'Apunte DAM';
+}
+
+function formatRelativeTimestamp(value: string) {
+  const date = new Date(value);
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round(
+    (startOfToday.getTime() - startOfDate.getTime()) / 86_400_000
+  );
+  const timeLabel = date.toLocaleTimeString('es-ES', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  if (diffDays <= 0) {
+    return `Hoy, ${timeLabel}`;
+  }
+
+  if (diffDays === 1) {
+    return `Ayer, ${timeLabel}`;
+  }
+
+  return date.toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: 'short',
+  });
+}
+
+function buildWeeklyBars(entries: AnyNote[]): WeeklyBar[] {
+  const labels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+  const now = new Date();
+  const monday = new Date(now);
+  const currentDay = monday.getDay();
+  const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay;
+  monday.setDate(now.getDate() + mondayOffset);
+  monday.setHours(0, 0, 0, 0);
+
+  const counts = Array.from({ length: 7 }, () => 0);
+
+  entries.forEach((entry) => {
+    const current = new Date(entry.updatedAt);
+    const normalized = new Date(
+      current.getFullYear(),
+      current.getMonth(),
+      current.getDate()
+    );
+    const diffDays = Math.round(
+      (normalized.getTime() - monday.getTime()) / 86_400_000
+    );
+
+    if (diffDays >= 0 && diffDays < 7) {
+      counts[diffDays] += 1;
+    }
+  });
+
+  const maxCount = Math.max(...counts, 1);
+  const todayIndex = currentDay === 0 ? 6 : currentDay - 1;
+
+  return labels.map((label, index) => ({
+    label,
+    value: counts[index] > 0 ? Math.round((counts[index] / maxCount) * 100) : 12,
+    accent: index === todayIndex,
+  }));
 }
 
 function formatSeconds(totalSeconds: number) {

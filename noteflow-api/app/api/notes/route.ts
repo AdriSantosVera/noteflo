@@ -1,0 +1,192 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+
+import { query } from "@/lib/db";
+
+export const dynamic = "force-dynamic";
+
+type NoteRow = {
+  id: string;
+  title: string;
+  type: "note" | "checklist" | "idea";
+  content: string | null;
+  color: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  created_at: string;
+  updated_at: string;
+  checklist_items: unknown[] | null;
+  tags: string[] | null;
+};
+
+const createNoteSchema = z.object({
+  title: z.string().trim().min(3, "El título debe tener al menos 3 caracteres"),
+  type: z.enum(["note", "checklist", "idea"]),
+  content: z.string().trim().optional(),
+  color: z.string().trim().min(1).optional(),
+  tags: z.array(z.string().trim().min(1)).optional(),
+  startDate: z.string().trim().nullable().optional(),
+  endDate: z.string().trim().nullable().optional(),
+  start_date: z.string().trim().nullable().optional(),
+  end_date: z.string().trim().nullable().optional(),
+});
+
+const notesListQuery = `
+  SELECT
+    n.id,
+    n.title,
+    n.type,
+    n.content,
+    n.color,
+    n.start_date,
+    n.end_date,
+    n.created_at,
+    n.updated_at,
+    COALESCE(
+      json_agg(
+        DISTINCT jsonb_build_object(
+          'id', ci.id,
+          'text', ci.text,
+          'isCompleted', ci.is_completed,
+          'createdAt', ci.created_at,
+          'updatedAt', ci.updated_at
+        )
+      ) FILTER (WHERE ci.id IS NOT NULL),
+      '[]'::json
+    ) AS checklist_items,
+    COALESCE(
+      json_agg(DISTINCT nt.tag) FILTER (WHERE nt.id IS NOT NULL),
+      '[]'::json
+    ) AS tags
+  FROM notes AS n
+  LEFT JOIN checklist_items AS ci
+    ON ci.note_id = n.id
+  LEFT JOIN note_tags AS nt
+    ON nt.note_id = n.id
+  GROUP BY n.id
+  ORDER BY n.created_at DESC
+`;
+
+function mapNote(row: NoteRow) {
+  return {
+    id: row.id,
+    title: row.title,
+    type: row.type,
+    content: row.content,
+    color: row.color,
+    start_date: row.start_date,
+    end_date: row.end_date,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    checklistItems: row.checklist_items ?? [],
+    tags: row.tags ?? [],
+  };
+}
+
+export async function GET() {
+  try {
+    const rows = await query<NoteRow>(notesListQuery);
+    return NextResponse.json(rows.map(mapNote));
+  } catch (error) {
+    console.error("GET /api/notes error:", error);
+    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    console.log("POST /api/notes body:", body);
+    const result = createNoteSchema.safeParse(body);
+
+    if (!result.success) {
+      return NextResponse.json(
+        {
+          error: "Datos no válidos",
+          details: result.error.flatten().fieldErrors,
+        },
+        { status: 400 },
+      );
+    }
+
+    const {
+      title,
+      type,
+      content,
+      color,
+      tags,
+      startDate,
+      endDate,
+      start_date,
+      end_date,
+    } = result.data;
+    const normalizedStartDate = start_date ?? startDate ?? null;
+    const normalizedEndDate = end_date ?? endDate ?? null;
+
+    const rows = await query<{
+      id: string;
+      title: string;
+      type: "note" | "checklist" | "idea";
+      content: string | null;
+      color: string | null;
+      start_date: string | null;
+      end_date: string | null;
+      created_at: string;
+      updated_at: string;
+    }>(
+      `
+        INSERT INTO notes (title, type, content, color, start_date, end_date)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id, title, type, content, color, start_date, end_date, created_at, updated_at
+      `,
+      [
+        title,
+        type,
+        content ?? null,
+        color ?? null,
+        normalizedStartDate,
+        normalizedEndDate,
+      ],
+    );
+
+    const created = rows[0];
+
+    if (type === "idea" && tags && tags.length > 0) {
+      await Promise.all(
+        tags.map((tag) =>
+          query(
+            `
+              INSERT INTO note_tags (note_id, tag)
+              VALUES ($1, $2)
+            `,
+            [created.id, tag],
+          ),
+        ),
+      );
+    }
+
+    return NextResponse.json(
+      {
+        id: created.id,
+        title: created.title,
+        type: created.type,
+        content: created.content,
+        color: created.color,
+        start_date: created.start_date,
+        end_date: created.end_date,
+        startDate: created.start_date,
+        endDate: created.end_date,
+        createdAt: created.created_at,
+        updatedAt: created.updated_at,
+        checklistItems: [],
+        tags: tags ?? [],
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    console.error("POST /api/notes error:", error);
+    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+  }
+}

@@ -4,25 +4,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { fontSizes, spacing } from '../../../constants/theme';
 import { useNotesStore } from '../../../store/notesStore';
-import type { IdeaNote } from '../../../types';
-
-const SAMPLE_IDEAS: IdeaNote[] = [
-  {
-    id: 'sample-idea-1',
-    type: 'idea',
-    title: 'Modo enfoque',
-    summary: 'Bloquear distracciones y arrancar sesiones cortas de trabajo.',
-    tags: ['#productividad', '#timer'],
-    createdAt: '2026-05-10T09:30:00.000Z',
-    updatedAt: '2026-05-12T09:30:00.000Z',
-  },
-];
 
 export default function IdeaDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const ideas = useNotesStore((state) => state.ideas);
   const deleteIdea = useNotesStore((state) => state.deleteIdea);
-  const idea = ideas.find((entry) => entry.id === id) ?? SAMPLE_IDEAS.find((entry) => entry.id === id);
+  const error = useNotesStore((state) => state.error);
+  const idea = ideas.find((entry) => entry.id === id);
 
   const handleDelete = () => {
     if (!idea || !ideas.find((entry) => entry.id === id)) {
@@ -35,9 +23,15 @@ export default function IdeaDetailScreen() {
       {
         text: 'Eliminar',
         style: 'destructive',
-        onPress: () => {
-          deleteIdea(idea.id);
-          router.back();
+        onPress: async () => {
+          const deleted = await deleteIdea(idea.id);
+
+          if (deleted) {
+            router.back();
+            return;
+          }
+
+          Alert.alert('No se pudo eliminar', error ?? 'Inténtalo de nuevo en unos segundos.');
         },
       },
     ]);

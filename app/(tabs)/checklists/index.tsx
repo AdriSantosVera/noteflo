@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   Animated,
   Pressable,
@@ -18,60 +18,15 @@ import { GlassPanel } from '../../../components/ui/GlassPanel';
 import { ProgressCard } from '../../../components/ui/ProgressCard';
 import { SectionHeader } from '../../../components/ui/SectionHeader';
 import { useNotesStore } from '../../../store/notesStore';
-import type { ChecklistItem, ChecklistNote } from '../../../types';
-
-const SAMPLE_CHECKLISTS: ChecklistNote[] = [
-  {
-    id: 'sample-checklist-1',
-    type: 'checklist',
-    title: 'Corregir navegación Expo Router',
-    items: [
-      { id: '1', label: 'Revisar layout', completed: true },
-      { id: '2', label: 'Ocultar rutas dinámicas', completed: true },
-      { id: '3', label: 'Probar iPhone', completed: true },
-      { id: '4', label: 'Limpiar warnings', completed: false },
-    ],
-    createdAt: '2026-05-10T09:30:00.000Z',
-    updatedAt: '2026-05-12T09:30:00.000Z',
-  },
-  {
-    id: 'sample-checklist-2',
-    type: 'checklist',
-    title: 'Preparar documentación',
-    items: [
-      { id: '1', label: 'Arquitectura', completed: true },
-      { id: '2', label: 'Store', completed: true },
-      { id: '3', label: 'Router', completed: true },
-      { id: '4', label: 'Pantallas', completed: true },
-      { id: '5', label: 'Flujos', completed: true },
-      { id: '6', label: 'Diagramas', completed: false },
-      { id: '7', label: 'QA final', completed: false },
-    ],
-    createdAt: '2026-05-10T11:20:00.000Z',
-    updatedAt: '2026-05-11T11:20:00.000Z',
-  },
-  {
-    id: 'sample-checklist-3',
-    type: 'checklist',
-    title: 'Pulir interfaz principal',
-    items: [
-      { id: '1', label: 'Espaciado', completed: true },
-      { id: '2', label: 'Contraste', completed: true },
-      { id: '3', label: 'Microcopy', completed: false },
-      { id: '4', label: 'Animaciones', completed: false },
-      { id: '5', label: 'QA visual', completed: false },
-    ],
-    createdAt: '2026-05-10T18:45:00.000Z',
-    updatedAt: '2026-05-11T18:45:00.000Z',
-  },
-];
+import type { ChecklistItem } from '../../../types';
 
 export default function ChecklistsIndexScreen() {
   const checklists = useNotesStore((state) => state.checklists);
   const toggleChecklistItem = useNotesStore((state) => state.toggleChecklistItem);
-  const [sampleChecklists, setSampleChecklists] = useState<ChecklistNote[]>(SAMPLE_CHECKLISTS);
+  const isLoading = useNotesStore((state) => state.isLoading);
+  const error = useNotesStore((state) => state.error);
   const previousProgressRef = useRef<Record<string, number>>({});
-  const visibleChecklists = (checklists.length > 0 ? checklists : sampleChecklists).slice(0, 3);
+  const visibleChecklists = checklists.slice(0, 3);
   const summary = useMemo(() => {
     const totalItems = visibleChecklists.reduce(
       (acc, checklist) => acc + checklist.items.length,
@@ -98,12 +53,16 @@ export default function ChecklistsIndexScreen() {
       ).length,
     [visibleChecklists]
   );
+  const activeDaysCount = useMemo(() => {
+    const currentWeekKeys = buildCurrentWeekDateKeys();
+    const activeKeys = new Set(
+      checklists
+        .map((checklist) => checklist.updatedAt.slice(0, 10))
+        .filter((key) => currentWeekKeys.has(key))
+    );
 
-  useEffect(() => {
-    if (checklists.length > 0) {
-      setSampleChecklists(SAMPLE_CHECKLISTS);
-    }
-  }, [checklists.length]);
+    return activeKeys.size;
+  }, [checklists]);
 
   useEffect(() => {
     visibleChecklists.forEach((checklist) => {
@@ -121,26 +80,7 @@ export default function ChecklistsIndexScreen() {
   }, [visibleChecklists]);
 
   const handleToggleItem = async (checklistId: string, itemId: string) => {
-    if (checklists.length > 0) {
-      toggleChecklistItem(checklistId, itemId);
-    } else {
-      setSampleChecklists((current) =>
-        current.map((checklist) =>
-          checklist.id !== checklistId
-            ? checklist
-            : {
-                ...checklist,
-                updatedAt: new Date().toISOString(),
-                items: checklist.items.map((item) =>
-                  item.id === itemId
-                    ? { ...item, completed: !item.completed }
-                    : item
-                ),
-              }
-        )
-      );
-    }
-
+    await toggleChecklistItem(checklistId, itemId);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
@@ -170,8 +110,8 @@ export default function ChecklistsIndexScreen() {
                 <Text style={styles.summaryBadgeLabel}>checklists completadas hoy</Text>
               </View>
               <View style={styles.summaryBadge}>
-                <Text style={styles.summaryBadgeValue}>4 días</Text>
-                <Text style={styles.summaryBadgeLabel}>racha de productividad</Text>
+                <Text style={styles.summaryBadgeValue}>{activeDaysCount} días</Text>
+                <Text style={styles.summaryBadgeLabel}>actividad esta semana</Text>
               </View>
             </View>
           </ProgressCard>
@@ -181,7 +121,17 @@ export default function ChecklistsIndexScreen() {
               title="Checklists activas"
               subtitle="Pasos concretos para avanzar sin perder el foco."
             />
-            {visibleChecklists.length > 0 ? (
+            {isLoading && visibleChecklists.length === 0 ? (
+              <EmptyState
+                title="Cargando tareas"
+                description="Estamos recuperando tus checklists reales desde la API."
+              />
+            ) : error && visibleChecklists.length === 0 ? (
+              <EmptyState
+                title="No se pudieron cargar las tareas"
+                description={error}
+              />
+            ) : visibleChecklists.length > 0 ? (
               <View style={styles.cardsColumn}>
                 {visibleChecklists.map((checklist) => {
                   const completed = checklist.items.filter((item) => item.completed).length;
@@ -257,6 +207,23 @@ function resolveChecklistTag(title: string) {
     tag = 'UI/UX';
   }
   return tag;
+}
+
+function buildCurrentWeekDateKeys() {
+  const now = new Date();
+  const monday = new Date(now);
+  const day = monday.getDay();
+  const offset = day === 0 ? -6 : 1 - day;
+  monday.setDate(monday.getDate() + offset);
+  monday.setHours(0, 0, 0, 0);
+
+  return new Set(
+    Array.from({ length: 7 }, (_, index) => {
+      const current = new Date(monday);
+      current.setDate(monday.getDate() + index);
+      return current.toISOString().slice(0, 10);
+    })
+  );
 }
 
 type ChecklistItemRowProps = {

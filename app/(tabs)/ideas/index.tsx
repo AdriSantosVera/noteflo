@@ -7,18 +7,13 @@ import { EmptyState } from '../../../components/ui/EmptyState';
 import { GlassPanel } from '../../../components/ui/GlassPanel';
 import { SectionHeader } from '../../../components/ui/SectionHeader';
 import { useNotesStore } from '../../../store/notesStore';
-import type { IdeaNote } from '../../../types';
-
-const SAMPLE_IDEAS: IdeaNote[] = [
-  { id: 'sample-idea-1', type: 'idea', title: 'Modo enfoque', summary: 'Bloquear distracciones y arrancar sesiones cortas de trabajo.', tags: ['#productividad', '#timer'], createdAt: '2026-05-10T09:30:00.000Z', updatedAt: '2026-05-12T09:30:00.000Z' },
-  { id: 'sample-idea-2', type: 'idea', title: 'Resumen con IA', summary: 'Resumir apuntes técnicos al final del día con un tono de estudio.', tags: ['#ia', '#notas'], createdAt: '2026-05-10T11:20:00.000Z', updatedAt: '2026-05-11T11:20:00.000Z' },
-  { id: 'sample-idea-3', type: 'idea', title: 'Vista sprint', summary: 'Agrupar tareas y entregas DAM en una vista semanal compacta.', tags: ['#dam', '#proyecto'], createdAt: '2026-05-10T18:45:00.000Z', updatedAt: '2026-05-11T18:45:00.000Z' },
-];
 
 export default function IdeasIndexScreen() {
   const ideas = useNotesStore((state) => state.ideas);
-  const ideaSource = ideas.length > 0 ? ideas : SAMPLE_IDEAS;
-  const featuredIdea = ideas.length > 0 ? ideas[0] : null;
+  const isLoading = useNotesStore((state) => state.isLoading);
+  const error = useNotesStore((state) => state.error);
+  const ideaSource = ideas;
+  const featuredIdea = ideas[0] ?? null;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -33,22 +28,32 @@ export default function IdeasIndexScreen() {
             subtitle="Funcionalidades, mejoras y conceptos para tus proyectos."
           />
 
-          <Pressable onPress={() => router.push(`/(tabs)/ideas/${featuredIdea?.id ?? 'sample-featured-idea'}`)} style={({ pressed }) => [styles.cardPressable, pressed ? styles.cardPressablePressed : null]}>
-            <GlassPanel glow style={styles.featuredCard} contentStyle={styles.featuredContent}>
-              <Text style={styles.sectionEyebrow}>Idea destacada</Text>
-              <Text style={styles.featuredTitle}>{featuredIdea?.title ?? 'Flow Analytics'}</Text>
-              <Text style={styles.featuredDescription}>
-                {featuredIdea?.summary ?? 'Medir tiempo, ritmo y progreso semanal del usuario.'}
-              </Text>
-            </GlassPanel>
-          </Pressable>
+          {featuredIdea ? (
+            <Pressable onPress={() => router.push(`/(tabs)/ideas/${featuredIdea.id}`)} style={({ pressed }) => [styles.cardPressable, pressed ? styles.cardPressablePressed : null]}>
+              <GlassPanel glow style={styles.featuredCard} contentStyle={styles.featuredContent}>
+                <Text style={styles.sectionEyebrow}>Idea destacada</Text>
+                <Text style={styles.featuredTitle}>{featuredIdea.title}</Text>
+                <Text style={styles.featuredDescription}>{featuredIdea.summary}</Text>
+              </GlassPanel>
+            </Pressable>
+          ) : null}
 
           <View style={styles.sectionBlock}>
             <SectionHeader
               title="Explorar ideas"
               subtitle="Conceptos rápidos para seguir construyendo sin perder impulso."
             />
-            {ideaSource.length > 0 ? (
+            {isLoading && ideaSource.length === 0 ? (
+              <EmptyState
+                title="Cargando ideas"
+                description="Estamos recuperando tus ideas reales desde la API."
+              />
+            ) : error && ideaSource.length === 0 ? (
+              <EmptyState
+                title="No se pudieron cargar las ideas"
+                description={error}
+              />
+            ) : ideaSource.length > 0 ? (
               <View style={styles.ideasGrid}>
                 {ideaSource.slice(0, 3).map((idea) => (
                   <Pressable key={idea.id} onPress={() => router.push(`/(tabs)/ideas/${idea.id}`)} style={({ pressed }) => [styles.cardPressable, pressed ? styles.cardPressablePressed : null]}>
