@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { withCors, corsPreflight } from "@/lib/cors";
 import { query } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -85,13 +86,13 @@ function mapNote(row: NoteRow) {
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const rows = await query<NoteRow>(notesListQuery);
-    return NextResponse.json(rows.map(mapNote));
+    return withCors(NextResponse.json(rows.map(mapNote)), request);
   } catch (error) {
     console.error("GET /api/notes error:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return withCors(NextResponse.json({ error: "Error interno" }, { status: 500 }), request);
   }
 }
 
@@ -102,13 +103,13 @@ export async function POST(request: Request) {
     const result = createNoteSchema.safeParse(body);
 
     if (!result.success) {
-      return NextResponse.json(
+      return withCors(NextResponse.json(
         {
           error: "Datos no válidos",
           details: result.error.flatten().fieldErrors,
         },
         { status: 400 },
-      );
+      ), request);
     }
 
     const {
@@ -167,7 +168,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(
+    return withCors(NextResponse.json(
       {
         id: created.id,
         title: created.title,
@@ -184,9 +185,13 @@ export async function POST(request: Request) {
         tags: tags ?? [],
       },
       { status: 201 },
-    );
+    ), request);
   } catch (error) {
     console.error("POST /api/notes error:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return withCors(NextResponse.json({ error: "Error interno" }, { status: 500 }), request);
   }
+}
+
+export async function OPTIONS(request: Request) {
+  return corsPreflight(request);
 }

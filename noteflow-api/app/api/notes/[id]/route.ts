@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { withCors, corsPreflight } from "@/lib/cors";
 import { query } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -111,12 +112,12 @@ export async function GET(_request: Request, context: RouteContext) {
     const rows = await query<NoteRow>(noteByIdQuery, [id]);
 
     if (rows.length === 0) {
-      return NextResponse.json({ error: "Nota no encontrada" }, { status: 404 });
+      return withCors(NextResponse.json({ error: "Nota no encontrada" }, { status: 404 }), _request);
     }
 
-    return NextResponse.json(mapNote(rows[0]));
+    return withCors(NextResponse.json(mapNote(rows[0])), _request);
   } catch {
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return withCors(NextResponse.json({ error: "Error interno" }, { status: 500 }), _request);
   }
 }
 
@@ -128,13 +129,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     const result = updateNoteSchema.safeParse(body);
 
     if (!result.success) {
-      return NextResponse.json(
+      return withCors(NextResponse.json(
         {
           error: "Datos no válidos",
           details: result.error.flatten().fieldErrors,
         },
         { status: 400 },
-      );
+      ), request);
     }
 
     const {
@@ -183,7 +184,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
 
     if (rows.length === 0) {
-      return NextResponse.json({ error: "Nota no encontrada" }, { status: 404 });
+      return withCors(NextResponse.json({ error: "Nota no encontrada" }, { status: 404 }), request);
     }
 
     const updated = rows[0];
@@ -212,7 +213,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     }
 
-    return NextResponse.json({
+    return withCors(NextResponse.json({
       id: updated.id,
       title: updated.title,
       type: updated.type,
@@ -225,9 +226,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       createdAt: updated.created_at,
       updatedAt: updated.updated_at,
       tags: tags ?? [],
-    });
+    }), request);
   } catch {
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return withCors(NextResponse.json({ error: "Error interno" }, { status: 500 }), request);
   }
 }
 
@@ -245,11 +246,15 @@ export async function DELETE(_request: Request, context: RouteContext) {
     );
 
     if (rows.length === 0) {
-      return NextResponse.json({ error: "Nota no encontrada" }, { status: 404 });
+      return withCors(NextResponse.json({ error: "Nota no encontrada" }, { status: 404 }), _request);
     }
 
-    return new NextResponse(null, { status: 204 });
+    return withCors(new NextResponse(null, { status: 204 }), _request);
   } catch {
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return withCors(NextResponse.json({ error: "Error interno" }, { status: 500 }), _request);
   }
+}
+
+export async function OPTIONS(request: Request) {
+  return corsPreflight(request);
 }

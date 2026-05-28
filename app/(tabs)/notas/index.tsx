@@ -311,9 +311,9 @@ export default function NotesIndexScreen() {
     : 0;
   const dominantDistribution = useMemo(
     () =>
-      DISTRIBUTION_DATA.reduce((current, item) =>
+      DISTRIBUTION_DATA.reduce<DistributionItem>((current, item) =>
         item.percent > current.percent ? item : current
-      ),
+      , DISTRIBUTION_DATA[0]),
     []
   );
 

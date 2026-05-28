@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { withCors, corsPreflight } from "@/lib/cors";
 import { query } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +36,7 @@ function mapChecklistItem(row: ChecklistItemRow) {
   };
 }
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
     const notes = await query<{ id: string }>(
@@ -48,7 +49,7 @@ export async function GET(_request: Request, context: RouteContext) {
     );
 
     if (notes.length === 0) {
-      return NextResponse.json({ error: "Nota no encontrada" }, { status: 404 });
+      return withCors(NextResponse.json({ error: "Nota no encontrada" }, { status: 404 }), request);
     }
 
     const rows = await query<ChecklistItemRow>(
@@ -61,9 +62,9 @@ export async function GET(_request: Request, context: RouteContext) {
       [id],
     );
 
-    return NextResponse.json(rows.map(mapChecklistItem));
+    return withCors(NextResponse.json(rows.map(mapChecklistItem)), request);
   } catch {
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return withCors(NextResponse.json({ error: "Error interno" }, { status: 500 }), request);
   }
 }
 
@@ -74,13 +75,13 @@ export async function POST(request: Request, context: RouteContext) {
     const result = createChecklistItemSchema.safeParse(body);
 
     if (!result.success) {
-      return NextResponse.json(
+      return withCors(NextResponse.json(
         {
           error: "Datos no válidos",
           details: result.error.flatten().fieldErrors,
         },
         { status: 400 },
-      );
+      ), request);
     }
 
     const notes = await query<{ id: string; type: string }>(
@@ -93,14 +94,14 @@ export async function POST(request: Request, context: RouteContext) {
     );
 
     if (notes.length === 0) {
-      return NextResponse.json({ error: "Nota no encontrada" }, { status: 404 });
+      return withCors(NextResponse.json({ error: "Nota no encontrada" }, { status: 404 }), request);
     }
 
     if (notes[0].type !== "checklist") {
-      return NextResponse.json(
+      return withCors(NextResponse.json(
         { error: "La nota no es de tipo checklist" },
         { status: 400 },
-      );
+      ), request);
     }
 
     const rows = await query<ChecklistItemRow>(
@@ -121,8 +122,12 @@ export async function POST(request: Request, context: RouteContext) {
       [id],
     );
 
-    return NextResponse.json(mapChecklistItem(rows[0]), { status: 201 });
+    return withCors(NextResponse.json(mapChecklistItem(rows[0]), { status: 201 }), request);
   } catch {
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return withCors(NextResponse.json({ error: "Error interno" }, { status: 500 }), request);
   }
+}
+
+export async function OPTIONS(request: Request) {
+  return corsPreflight(request);
 }

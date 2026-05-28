@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { withCors, corsPreflight } from "@/lib/cors";
 import { query } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -42,13 +43,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     const result = updateChecklistItemSchema.safeParse(body);
 
     if (!result.success) {
-      return NextResponse.json(
+      return withCors(NextResponse.json(
         {
           error: "Datos no válidos",
           details: result.error.flatten().fieldErrors,
         },
         { status: 400 },
-      );
+      ), request);
     }
 
     const rows = await query<ChecklistItemRow>(
@@ -64,10 +65,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
 
     if (rows.length === 0) {
-      return NextResponse.json(
+      return withCors(NextResponse.json(
         { error: "Item de checklist no encontrado" },
         { status: 404 },
-      );
+      ), request);
     }
 
     await query(
@@ -79,9 +80,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       [rows[0].note_id],
     );
 
-    return NextResponse.json(mapChecklistItem(rows[0]));
+    return withCors(NextResponse.json(mapChecklistItem(rows[0])), request);
   } catch {
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return withCors(NextResponse.json({ error: "Error interno" }, { status: 500 }), request);
   }
 }
 
@@ -98,10 +99,10 @@ export async function DELETE(_request: Request, context: RouteContext) {
     );
 
     if (rows.length === 0) {
-      return NextResponse.json(
+      return withCors(NextResponse.json(
         { error: "Item de checklist no encontrado" },
         { status: 404 },
-      );
+      ), _request);
     }
 
     await query(
@@ -113,8 +114,12 @@ export async function DELETE(_request: Request, context: RouteContext) {
       [rows[0].note_id],
     );
 
-    return new NextResponse(null, { status: 204 });
+    return withCors(new NextResponse(null, { status: 204 }), _request);
   } catch {
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return withCors(NextResponse.json({ error: "Error interno" }, { status: 500 }), _request);
   }
+}
+
+export async function OPTIONS(request: Request) {
+  return corsPreflight(request);
 }
