@@ -1,4 +1,4 @@
-import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -13,29 +13,46 @@ export default function NoteDetailScreen() {
 
   const note = notes.find((entry) => entry.id === id);
 
-  const handleDelete = () => {
+  const confirmDelete = () => {
+    if (Platform.OS === 'web' && typeof globalThis.confirm === 'function') {
+      return Promise.resolve(globalThis.confirm('Esta acción borrará la entrada del store.'));
+    }
+
+    return new Promise<boolean>((resolve) => {
+      Alert.alert('Eliminar apunte', 'Esta acción borrará la entrada del store.', [
+        { text: 'Cancelar', style: 'cancel', onPress: () => resolve(false) },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => resolve(true),
+        },
+      ]);
+    });
+  };
+
+  const handleDelete = async () => {
     if (!note || !notes.find((entry) => entry.id === id)) {
       router.back();
       return;
     }
 
-    Alert.alert('Eliminar apunte', 'Esta acción borrará la entrada del store.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar',
-        style: 'destructive',
-        onPress: async () => {
-          const deleted = await deleteNote(note.id);
+    const confirmed = await confirmDelete();
 
-          if (deleted) {
-            router.back();
-            return;
-          }
+    if (!confirmed) {
+      return;
+    }
 
-          Alert.alert('No se pudo eliminar', error ?? 'Inténtalo de nuevo en unos segundos.');
-        },
-      },
-    ]);
+    const deleted = await deleteNote(note.id);
+
+    if (deleted) {
+      router.back();
+      return;
+    }
+
+    Alert.alert(
+      'No se pudo eliminar',
+      useNotesStore.getState().error ?? error ?? 'Inténtalo de nuevo en unos segundos.'
+    );
   };
 
   if (!note) {

@@ -1,4 +1,4 @@
-import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -12,29 +12,46 @@ export default function ChecklistDetailScreen() {
   const error = useNotesStore((state) => state.error);
   const checklist = checklists.find((entry) => entry.id === id);
 
-  const handleDelete = () => {
+  const confirmDelete = () => {
+    if (Platform.OS === 'web' && typeof globalThis.confirm === 'function') {
+      return Promise.resolve(globalThis.confirm('Esta acción borrará la checklist del store.'));
+    }
+
+    return new Promise<boolean>((resolve) => {
+      Alert.alert('Eliminar tarea', 'Esta acción borrará la checklist del store.', [
+        { text: 'Cancelar', style: 'cancel', onPress: () => resolve(false) },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => resolve(true),
+        },
+      ]);
+    });
+  };
+
+  const handleDelete = async () => {
     if (!checklist || !checklists.find((entry) => entry.id === id)) {
       router.back();
       return;
     }
 
-    Alert.alert('Eliminar tarea', 'Esta acción borrará la checklist del store.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar',
-        style: 'destructive',
-        onPress: async () => {
-          const deleted = await deleteChecklist(checklist.id);
+    const confirmed = await confirmDelete();
 
-          if (deleted) {
-            router.back();
-            return;
-          }
+    if (!confirmed) {
+      return;
+    }
 
-          Alert.alert('No se pudo eliminar', error ?? 'Inténtalo de nuevo en unos segundos.');
-        },
-      },
-    ]);
+    const deleted = await deleteChecklist(checklist.id);
+
+    if (deleted) {
+      router.back();
+      return;
+    }
+
+    Alert.alert(
+      'No se pudo eliminar',
+      useNotesStore.getState().error ?? error ?? 'Inténtalo de nuevo en unos segundos.'
+    );
   };
 
   if (!checklist) {
