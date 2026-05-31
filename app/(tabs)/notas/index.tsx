@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Animated,
+  Image,
   Modal,
   Platform,
   Pressable,
@@ -8,11 +9,13 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 
 import { fontSizes, spacing } from '../../../constants/theme';
 import { EmptyState } from '../../../components/ui/EmptyState';
@@ -21,6 +24,7 @@ import { MiniBarChart } from '../../../components/ui/MiniBarChart';
 import { MiniCalendar } from '../../../components/ui/MiniCalendar';
 import { SectionHeader } from '../../../components/ui/SectionHeader';
 import { StatCard } from '../../../components/ui/StatCard';
+import { useAuthStore } from '../../../store/authStore';
 import { useNotesStore } from '../../../store/notesStore';
 import type { AnyNote } from '../../../types';
 
@@ -194,7 +198,16 @@ const SESSION_OPTIONS: SessionOption[] = [
   { id: 'custom', label: 'Personalizado', minutes: 75 },
 ];
 
-export default function NotesIndexScreen() {
+export function NotesIndexScreen({
+  isPublicView = false,
+}: {
+  isPublicView?: boolean;
+}) {
+  const user = useAuthStore((state) => state.user);
+  const profile = useAuthStore((state) => state.profile);
+  const logout = useAuthStore((state) => state.logout);
+  const updateAvatarUrl = useAuthStore((state) => state.updateAvatarUrl);
+  const authError = useAuthStore((state) => state.authError);
   const notes = useNotesStore((state) => state.notes);
   const checklists = useNotesStore((state) => state.checklists);
   const ideas = useNotesStore((state) => state.ideas);
@@ -203,6 +216,12 @@ export default function NotesIndexScreen() {
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
   const [isChartVisible, setIsChartVisible] = useState(false);
   const [isFocusModalVisible, setIsFocusModalVisible] = useState(false);
+  const [isProfileModalVisible, setIsProfileModalVisible] = useState(false);
+  const [avatarDraft, setAvatarDraft] = useState('');
+  const [localAvatarUri, setLocalAvatarUri] = useState<string | null>(null);
+  const [isSavingAvatar, setIsSavingAvatar] = useState(false);
+  const [isPickingAvatar, setIsPickingAvatar] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [selectedFocusId, setSelectedFocusId] = useState(FOCUS_OPTIONS[0].id);
   const [selectedSessionId, setSelectedSessionId] = useState(SESSION_OPTIONS[1].id);
   const [activeFocusSession, setActiveFocusSession] = useState<{
@@ -318,6 +337,48 @@ export default function NotesIndexScreen() {
   );
 
   useEffect(() => {
+    setAvatarDraft(profile?.avatarUrl ?? '');
+  }, [profile?.avatarUrl]);
+
+  useEffect(() => {
+    setLocalAvatarUri(profile?.avatarUrl ?? null);
+  }, [profile?.avatarUrl]);
+
+  const displayAvatarUri = localAvatarUri ?? profile?.avatarUrl ?? null;
+
+  const handlePickAvatar = async () => {
+    try {
+      setIsPickingAvatar(true);
+
+      if (Platform.OS !== 'web') {
+        const permissionResult =
+          await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+        if (permissionResult.status !== 'granted') {
+          throw new Error(
+            'Necesitamos permisos para acceder a tu galería.'
+          );
+        }
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        const nextUri = result.assets[0]?.uri ?? null;
+        setLocalAvatarUri(nextUri);
+        setAvatarDraft(nextUri ?? '');
+      }
+    } finally {
+      setIsPickingAvatar(false);
+    }
+  };
+
+  useEffect(() => {
     if (!activeFocusSession || activeFocusSession.isPaused) {
       return;
     }
@@ -421,17 +482,48 @@ export default function NotesIndexScreen() {
             title="¿Qué quieres construir hoy?"
             subtitle="Organiza apuntes, tareas técnicas, ideas y tu ritmo de trabajo."
             trailing={
-              <Pressable
-                onPress={() => {
-                  router.push('/login');
-                }}
-                style={({ pressed }) => [
-                  styles.loginButton,
-                  pressed ? styles.loginButtonPressed : null,
-                ]}
-              >
-                <Text style={styles.loginButtonText}>Iniciar sesión</Text>
-              </Pressable>
+              !isPublicView && profile ? (
+                <Pressable
+                  onPress={() => setIsProfileModalVisible(true)}
+                  style={({ pressed }) => [
+                    styles.profileBadge,
+                    pressed ? styles.loginButtonPressed : null,
+                  ]}
+                >
+                  {displayAvatarUri ? (
+                    <Image
+                      source={{ uri: displayAvatarUri }}
+                      style={styles.profileAvatar}
+                    />
+                  ) : (
+                    <View style={styles.profileAvatarFallback}>
+                      <Text style={styles.profileAvatarFallbackText}>
+                        {getProfileInitials(profile.name)}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.profileCopy}>
+                    <Text numberOfLines={1} style={styles.profileName}>
+                      {profile.name}
+                    </Text>
+                    <Text numberOfLines={1} style={styles.profileCaption}>
+                      Editar perfil
+                    </Text>
+                  </View>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() => {
+                    router.push('/login');
+                  }}
+                  style={({ pressed }) => [
+                    styles.loginButton,
+                    pressed ? styles.loginButtonPressed : null,
+                  ]}
+                >
+                  <Text style={styles.loginButtonText}>Iniciar sesión</Text>
+                </Pressable>
+              )
             }
           />
 
@@ -649,7 +741,11 @@ export default function NotesIndexScreen() {
                 {recentNotes.map((note) => (
                   <Pressable
                     key={note.id}
-                    onPress={() => router.push(`/(tabs)/notas/${note.id}`)}
+                    onPress={() =>
+                      isPublicView || !user
+                        ? router.push('/login')
+                        : router.push(`/(tabs)/notas/${note.id}`)
+                    }
                     style={({ pressed }) => [styles.cardPressable, pressed ? styles.cardPressablePressed : null]}
                   >
                     <GlassPanel style={styles.noteCard} contentStyle={styles.noteCardContentWrap}>
@@ -691,12 +787,160 @@ export default function NotesIndexScreen() {
           </View>
         </ScrollView>
 
-        <Pressable accessibilityLabel="Crear nueva nota" onPress={() => router.push('/nueva-nota')} style={({ pressed }) => [styles.fab, pressed ? styles.fabPressed : null]}>
+        <Pressable
+          accessibilityLabel="Crear nueva nota"
+          onPress={() =>
+            isPublicView || !user
+              ? router.push('/login')
+              : router.push('/nueva-nota')
+          }
+          style={({ pressed }) => [styles.fab, pressed ? styles.fabPressed : null]}
+        >
           <LinearGradient colors={['#6366F1', '#22D3EE']} end={{ x: 1, y: 1 }} start={{ x: 0, y: 0 }} style={styles.fabGradient}>
             <Text style={styles.fabLabel}>+</Text>
           </LinearGradient>
         </Pressable>
       </View>
+
+      <Modal
+        animationType="slide"
+        transparent
+        visible={isProfileModalVisible}
+        onRequestClose={() => setIsProfileModalVisible(false)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setIsProfileModalVisible(false)}
+        >
+          <Pressable style={styles.modalSheet} onPress={() => undefined}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalTopBar}>
+              <Pressable
+                onPress={() => setIsProfileModalVisible(false)}
+                style={({ pressed }) => [
+                  styles.inlineCloseButton,
+                  pressed ? styles.inlineCloseButtonPressed : null,
+                ]}
+              >
+                <Ionicons name="chevron-back" size={16} color="#CFE7FF" />
+                <Text style={styles.inlineCloseLabel}>Cerrar</Text>
+              </Pressable>
+            </View>
+            <SectionHeader
+              eyebrow="Perfil"
+              title={profile?.name ?? 'Usuario'}
+              subtitle="Actualiza tu avatar o cierra la sesión actual."
+            />
+
+            <GlassPanel style={styles.modalPanel} contentStyle={styles.profileModalContent}>
+              <View style={styles.profileModalHeader}>
+                {displayAvatarUri ? (
+                  <Image
+                    source={{ uri: displayAvatarUri }}
+                    style={styles.profileAvatarLarge}
+                  />
+                ) : (
+                  <View style={styles.profileAvatarFallbackLarge}>
+                    <Text style={styles.profileAvatarFallbackLargeText}>
+                      {getProfileInitials(profile?.name ?? 'Usuario')}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.profileModalCopy}>
+                  <Text style={styles.profileModalName}>{profile?.name ?? 'Usuario'}</Text>
+                  <Text style={styles.profileModalEmail}>
+                    {profile?.email ?? 'Sin correo'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.fieldBlockModal}>
+                <Pressable
+                  disabled={isPickingAvatar}
+                  onPress={() => {
+                    void handlePickAvatar();
+                  }}
+                  style={({ pressed }) => [
+                    styles.profileSecondaryAction,
+                    pressed ? styles.focusControlButtonPressed : null,
+                  ]}
+                >
+                  <Text style={styles.profileSecondaryLabel}>
+                    {isPickingAvatar ? 'Abriendo galería...' : 'Cambiar foto de perfil'}
+                  </Text>
+                </Pressable>
+                <Text style={styles.profileFieldLabel}>Avatar URL</Text>
+                <TextInput
+                  autoCapitalize="none"
+                  onChangeText={setAvatarDraft}
+                  placeholder="https://..."
+                  placeholderTextColor="#667391"
+                  style={styles.profileInput}
+                  value={avatarDraft}
+                />
+                <Text style={styles.profileFieldHint}>
+                  Puedes elegir una imagen de la galería o pegar una URL pública.
+                </Text>
+              </View>
+
+              {authError ? <Text style={styles.profileErrorText}>{authError}</Text> : null}
+
+              <Pressable
+                disabled={isSavingAvatar}
+                onPress={() => {
+                  void (async () => {
+                    try {
+                      setIsSavingAvatar(true);
+                      await updateAvatarUrl(avatarDraft);
+                      setIsProfileModalVisible(false);
+                    } finally {
+                      setIsSavingAvatar(false);
+                    }
+                  })();
+                }}
+                style={({ pressed }) => [
+                  styles.profilePrimaryAction,
+                  pressed ? styles.focusControlButtonPressed : null,
+                ]}
+              >
+                <LinearGradient
+                  colors={['#6B6CFF', '#35D4F8']}
+                  end={{ x: 1, y: 0.5 }}
+                  start={{ x: 0, y: 0.5 }}
+                  style={styles.profilePrimaryGradient}
+                >
+                  <Text style={styles.profilePrimaryLabel}>
+                    {isSavingAvatar ? 'Guardando...' : 'Guardar avatar'}
+                  </Text>
+                </LinearGradient>
+              </Pressable>
+
+              <Pressable
+                disabled={isSigningOut}
+                onPress={() => {
+                  void (async () => {
+                    try {
+                      setIsSigningOut(true);
+                      await logout();
+                      setIsProfileModalVisible(false);
+                    } finally {
+                      setIsSigningOut(false);
+                    }
+                  })();
+                }}
+                style={({ pressed }) => [
+                  styles.profileSecondaryAction,
+                  pressed ? styles.focusControlButtonPressed : null,
+                ]}
+              >
+                <Text style={styles.profileSecondaryLabel}>
+                  {isSigningOut ? 'Cerrando sesión...' : 'Cerrar sesión'}
+                </Text>
+              </Pressable>
+            </GlassPanel>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Modal
         animationType="slide"
@@ -1070,6 +1314,8 @@ export default function NotesIndexScreen() {
   );
 }
 
+export default NotesIndexScreen;
+
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#070A12' },
   container: { flex: 1, backgroundColor: '#070A12' },
@@ -1392,6 +1638,152 @@ const styles = StyleSheet.create({
   },
   loginButtonText: {
     fontSize: fontSizes.xs,
+    fontWeight: '700',
+    color: '#F4F7FF',
+  },
+  profileBadge: {
+    minHeight: 48,
+    maxWidth: 220,
+    paddingLeft: spacing.xs,
+    paddingRight: spacing.md,
+    borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: 'rgba(9, 14, 26, 0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.18)',
+  },
+  profileAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+  },
+  profileAvatarFallback: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(99, 102, 241, 0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(129, 140, 248, 0.24)',
+  },
+  profileAvatarFallbackText: {
+    fontSize: fontSizes.xs,
+    fontWeight: '800',
+    color: '#E0E7FF',
+  },
+  profileCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  profileName: {
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    color: '#F4F7FF',
+  },
+  profileCaption: {
+    marginTop: 2,
+    fontSize: 11,
+    color: '#8AA0D2',
+  },
+  profileModalContent: {
+    gap: spacing.lg,
+  },
+  profileModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  profileAvatarLarge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+  },
+  profileAvatarFallbackLarge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(99, 102, 241, 0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(129, 140, 248, 0.24)',
+  },
+  profileAvatarFallbackLargeText: {
+    fontSize: fontSizes.lg,
+    fontWeight: '800',
+    color: '#E0E7FF',
+  },
+  profileModalCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  profileModalName: {
+    fontSize: fontSizes.lg,
+    fontWeight: '700',
+    color: '#F4F7FF',
+  },
+  profileModalEmail: {
+    marginTop: 4,
+    fontSize: fontSizes.sm,
+    color: '#8AA0D2',
+  },
+  fieldBlockModal: {
+    gap: spacing.sm,
+  },
+  profileFieldLabel: {
+    fontSize: fontSizes.sm,
+    fontWeight: '700',
+    color: '#DDE6FF',
+  },
+  profileInput: {
+    minHeight: 54,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    backgroundColor: '#090E1A',
+    borderWidth: 1,
+    borderColor: 'rgba(121, 140, 179, 0.18)',
+    color: '#F4F7FF',
+    fontSize: fontSizes.sm,
+  },
+  profileFieldHint: {
+    fontSize: fontSizes.xs,
+    lineHeight: 18,
+    color: '#7B8BA8',
+  },
+  profileErrorText: {
+    fontSize: fontSizes.sm,
+    lineHeight: 22,
+    color: '#F5A6A6',
+  },
+  profilePrimaryAction: {
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  profilePrimaryGradient: {
+    minHeight: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+  },
+  profilePrimaryLabel: {
+    fontSize: fontSizes.md,
+    fontWeight: '700',
+    color: '#F5F7FF',
+  },
+  profileSecondaryAction: {
+    minHeight: 52,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(9, 14, 26, 0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.18)',
+  },
+  profileSecondaryLabel: {
+    fontSize: fontSizes.sm,
     fontWeight: '700',
     color: '#F4F7FF',
   },
@@ -2088,4 +2480,15 @@ function resolveMetricProgress(value: string) {
 
   const numeric = Number.parseInt(value, 10);
   return Math.min(100, numeric * 8);
+}
+
+function getProfileInitials(name: string) {
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('');
+
+  return initials || 'NF';
 }

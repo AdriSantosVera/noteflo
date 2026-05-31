@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 type NoteRow = {
   id: string;
+  user_id: string | null;
   title: string;
   type: "note" | "checklist" | "idea";
   content: string | null;
@@ -21,6 +22,7 @@ type NoteRow = {
 };
 
 const createNoteSchema = z.object({
+  user_id: z.string().trim().min(1, "Debes indicar el usuario propietario"),
   title: z.string().trim().min(3, "El título debe tener al menos 3 caracteres"),
   type: z.enum(["note", "checklist", "idea"]),
   content: z.string().trim().optional(),
@@ -35,6 +37,7 @@ const createNoteSchema = z.object({
 const notesListQuery = `
   SELECT
     n.id,
+    n.user_id,
     n.title,
     n.type,
     n.content,
@@ -64,6 +67,7 @@ const notesListQuery = `
     ON ci.note_id = n.id
   LEFT JOIN note_tags AS nt
     ON nt.note_id = n.id
+  WHERE n.user_id = $1
   GROUP BY n.id
   ORDER BY n.created_at DESC
 `;
@@ -71,6 +75,7 @@ const notesListQuery = `
 function mapNote(row: NoteRow) {
   return {
     id: row.id,
+    user_id: row.user_id,
     title: row.title,
     type: row.type,
     content: row.content,
@@ -88,7 +93,14 @@ function mapNote(row: NoteRow) {
 
 export async function GET(request: Request) {
   try {
-    const rows = await query<NoteRow>(notesListQuery);
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get("user_id")?.trim();
+
+    if (!userId) {
+      return withCors(NextResponse.json([]), request);
+    }
+
+    const rows = await query<NoteRow>(notesListQuery, [userId]);
     return withCors(NextResponse.json(rows.map(mapNote)), request);
   } catch (error) {
     console.error("GET /api/notes error:", error);
@@ -113,6 +125,7 @@ export async function POST(request: Request) {
     }
 
     const {
+      user_id,
       title,
       type,
       content,
@@ -128,6 +141,7 @@ export async function POST(request: Request) {
 
     const rows = await query<{
       id: string;
+      user_id: string | null;
       title: string;
       type: "note" | "checklist" | "idea";
       content: string | null;
@@ -138,11 +152,12 @@ export async function POST(request: Request) {
       updated_at: string;
     }>(
       `
-        INSERT INTO notes (title, type, content, color, start_date, end_date)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING id, title, type, content, color, start_date, end_date, created_at, updated_at
+        INSERT INTO notes (user_id, title, type, content, color, start_date, end_date)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id, user_id, title, type, content, color, start_date, end_date, created_at, updated_at
       `,
       [
+        user_id,
         title,
         type,
         content ?? null,
@@ -171,6 +186,7 @@ export async function POST(request: Request) {
     return withCors(NextResponse.json(
       {
         id: created.id,
+        user_id: created.user_id,
         title: created.title,
         type: created.type,
         content: created.content,

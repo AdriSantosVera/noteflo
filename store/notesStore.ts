@@ -12,6 +12,8 @@ import {
   mapNoteToCreatePayload,
   updateChecklistItem,
 } from '../lib/api';
+import { auth } from '../lib/firebase';
+import { useAuthStore } from './authStore';
 import type { AnyNote, ChecklistNote, IdeaNote, Note } from '../types';
 import { mapApiChecklistItemToChecklistItem, mapApiNoteToNote } from '../types';
 
@@ -46,9 +48,13 @@ function getPersistedSlice(state: NotesStore): PersistedNotesState {
   };
 }
 
-async function persistSlice(slice: PersistedNotesState) {
+async function persistSlice(slice: PersistedNotesState, userId: string | null) {
+  if (!userId) {
+    return;
+  }
+
   try {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(slice));
+    await AsyncStorage.setItem(getStorageKeyForUser(userId), JSON.stringify(slice));
   } catch {
     // Cache opcional: la fuente principal de verdad es el servidor.
   }
@@ -64,10 +70,36 @@ function splitNotesByType(entries: AnyNote[]): PersistedNotesState {
   };
 }
 
+function getCurrentUserId(): string | null {
+  return useAuthStore.getState().user?.uid ?? auth?.currentUser?.uid ?? null;
+}
+
+function getStorageKeyForUser(userId: string) {
+  return `${STORAGE_KEY}:${userId}`;
+}
+
 async function syncServerState(
   set: (partial: Partial<NotesStore>) => void
 ): Promise<PersistedNotesState> {
-  const apiNotes = await getNotes();
+  const userId = getCurrentUserId();
+
+  if (!userId) {
+    const emptySlice: PersistedNotesState = {
+      notes: [],
+      checklists: [],
+      ideas: [],
+    };
+
+    set({
+      ...emptySlice,
+      hasHydrated: true,
+      error: null,
+    });
+
+    return emptySlice;
+  }
+
+  const apiNotes = await getNotes(userId);
   const nextSlice = splitNotesByType(apiNotes.map(mapApiNoteToNote));
 
   set({
@@ -75,7 +107,7 @@ async function syncServerState(
     hasHydrated: true,
     error: null,
   });
-  await persistSlice(nextSlice);
+  await persistSlice(nextSlice, userId);
 
   return nextSlice;
 }
@@ -88,8 +120,20 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
   isLoading: false,
   error: null,
   hydrate: async () => {
+    const userId = getCurrentUserId();
+
+    if (!userId) {
+      set({
+        notes: [],
+        checklists: [],
+        ideas: [],
+        hasHydrated: true,
+      });
+      return;
+    }
+
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      const raw = await AsyncStorage.getItem(getStorageKeyForUser(userId));
 
       if (!raw) {
         set({ hasHydrated: true });
@@ -128,8 +172,14 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
+      const userId = getCurrentUserId();
+
+      if (!userId) {
+        throw new Error('Debes iniciar sesión para crear una nota.');
+      }
+
       const created = mapApiNoteToNote(
-        await createNote(mapNoteToCreatePayload(entry))
+        await createNote(mapNoteToCreatePayload(entry, userId))
       );
 
       if (created.type !== 'note') {
@@ -151,8 +201,14 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
+      const userId = getCurrentUserId();
+
+      if (!userId) {
+        throw new Error('Debes iniciar sesión para crear una checklist.');
+      }
+
       const createdChecklistBase = mapApiNoteToNote(
-        await createNote(mapChecklistToCreatePayload(entry))
+        await createNote(mapChecklistToCreatePayload(entry, userId))
       );
 
       if (createdChecklistBase.type !== 'checklist') {
@@ -161,7 +217,7 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
 
       const createdItems = await Promise.all(
         entry.items.map((item) =>
-          createChecklistItem(createdChecklistBase.id, item.label)
+          createChecklistItem(createdChecklistBase.id, item.label, userId)
         )
       );
 
@@ -188,8 +244,14 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
+      const userId = getCurrentUserId();
+
+      if (!userId) {
+        throw new Error('Debes iniciar sesión para crear una idea.');
+      }
+
       const created = mapApiNoteToNote(
-        await createNote(mapIdeaToCreatePayload(entry))
+        await createNote(mapIdeaToCreatePayload(entry, userId))
       );
 
       if (created.type !== 'idea') {
@@ -211,7 +273,13 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      await deleteNoteRequest(id);
+      const userId = getCurrentUserId();
+
+      if (!userId) {
+        throw new Error('Debes iniciar sesión para eliminar una nota.');
+      }
+
+      await deleteNoteRequest(id, userId);
       await syncServerState(set);
       set({ isLoading: false });
       return true;
@@ -228,7 +296,13 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      await deleteNoteRequest(id);
+      const userId = getCurrentUserId();
+
+      if (!userId) {
+        throw new Error('Debes iniciar sesión para eliminar una checklist.');
+      }
+
+      await deleteNoteRequest(id, userId);
       await syncServerState(set);
       set({ isLoading: false });
       return true;
@@ -247,7 +321,13 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      await deleteNoteRequest(id);
+      const userId = getCurrentUserId();
+
+      if (!userId) {
+        throw new Error('Debes iniciar sesión para eliminar una idea.');
+      }
+
+      await deleteNoteRequest(id, userId);
       await syncServerState(set);
       set({ isLoading: false });
       return true;
@@ -290,7 +370,7 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
       };
 
       set(nextState);
-      await persistSlice(getPersistedSlice(nextState));
+      await persistSlice(getPersistedSlice(nextState), getCurrentUserId());
     } catch (error) {
       set({
         error:

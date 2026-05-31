@@ -14,6 +14,7 @@ type RouteContext = {
 
 type NoteRow = {
   id: string;
+  user_id: string | null;
   title: string;
   type: "note" | "checklist" | "idea";
   content: string | null;
@@ -28,6 +29,7 @@ type NoteRow = {
 
 const updateNoteSchema = z
   .object({
+    user_id: z.string().trim().min(1, "Debes indicar el usuario propietario"),
     title: z.string().trim().min(3, "El título debe tener al menos 3 caracteres").optional(),
     content: z.string().trim().optional(),
     color: z.string().trim().min(1).optional(),
@@ -55,6 +57,7 @@ const updateNoteSchema = z
 const noteByIdQuery = `
   SELECT
     n.id,
+    n.user_id,
     n.title,
     n.type,
     n.content,
@@ -85,12 +88,14 @@ const noteByIdQuery = `
   LEFT JOIN note_tags AS nt
     ON nt.note_id = n.id
   WHERE n.id = $1
+    AND n.user_id = $2
   GROUP BY n.id
 `;
 
 function mapNote(row: NoteRow) {
   return {
     id: row.id,
+    user_id: row.user_id,
     title: row.title,
     type: row.type,
     content: row.content,
@@ -109,7 +114,14 @@ function mapNote(row: NoteRow) {
 export async function GET(_request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
-    const rows = await query<NoteRow>(noteByIdQuery, [id]);
+    const { searchParams } = new URL(_request.url);
+    const userId = searchParams.get("user_id")?.trim();
+
+    if (!userId) {
+      return withCors(NextResponse.json({ error: "Falta user_id" }, { status: 400 }), _request);
+    }
+
+    const rows = await query<NoteRow>(noteByIdQuery, [id, userId]);
 
     if (rows.length === 0) {
       return withCors(NextResponse.json({ error: "Nota no encontrada" }, { status: 404 }), _request);
@@ -139,6 +151,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const {
+      user_id,
       title,
       content,
       color,
@@ -152,6 +165,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const normalizedEndDate = end_date ?? endDate;
     const rows = await query<{
       id: string;
+      user_id: string | null;
       title: string;
       type: "note" | "checklist" | "idea";
       content: string | null;
@@ -171,7 +185,8 @@ export async function PATCH(request: Request, context: RouteContext) {
           end_date = COALESCE($5, end_date),
           updated_at = NOW()
         WHERE id = $6
-        RETURNING id, title, type, content, color, start_date, end_date, created_at, updated_at
+          AND user_id = $7
+        RETURNING id, user_id, title, type, content, color, start_date, end_date, created_at, updated_at
       `,
       [
         title ?? null,
@@ -180,6 +195,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         normalizedStartDate ?? null,
         normalizedEndDate ?? null,
         id,
+        user_id,
       ],
     );
 
@@ -215,6 +231,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return withCors(NextResponse.json({
       id: updated.id,
+      user_id: updated.user_id,
       title: updated.title,
       type: updated.type,
       content: updated.content,
@@ -235,14 +252,20 @@ export async function PATCH(request: Request, context: RouteContext) {
 export async function DELETE(_request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
+    const { searchParams } = new URL(_request.url);
+    const userId = searchParams.get("user_id")?.trim();
     console.log(`DELETE /api/notes/${id}`);
+    if (!userId) {
+      return withCors(NextResponse.json({ error: "Falta user_id" }, { status: 400 }), _request);
+    }
     const rows = await query<{ id: string }>(
       `
         DELETE FROM notes
         WHERE id = $1
+          AND user_id = $2
         RETURNING id
       `,
-      [id],
+      [id, userId],
     );
 
     if (rows.length === 0) {

@@ -10,25 +10,42 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuthStore } from '../store/authStore';
 
 export default function RegisterScreen() {
+  const router = useRouter();
   const register = useAuthStore((state) => state.register);
   const authError = useAuthStore((state) => state.authError);
   const clearAuthError = useAuthStore((state) => state.clearAuthError);
-  const isAuthLoading = useAuthStore((state) => state.isAuthLoading);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleRegister() {
     clearAuthError();
-    await register(email, password, name);
+    setLocalError(null);
+
+    if (!name.trim() || !email.trim() || !password.trim()) {
+      setLocalError('Debes completar nombre, correo y contraseña.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await register(email, password, name);
+      router.replace('/(tabs)/notas');
+    } catch {
+      // El store ya refleja el error visible.
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -96,10 +113,11 @@ export default function RegisterScreen() {
               />
             </View>
 
+            {localError ? <Text style={styles.errorText}>{localError}</Text> : null}
             {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
 
             <Pressable
-              disabled={isAuthLoading}
+              disabled={isSubmitting}
               onPress={() => {
                 void handleRegister();
               }}
@@ -111,7 +129,7 @@ export default function RegisterScreen() {
                 start={{ x: 0, y: 0.5 }}
                 style={styles.gradientButton}
               >
-                {isAuthLoading ? (
+                {isSubmitting ? (
                   <ActivityIndicator color="#F5F7FF" />
                 ) : (
                   <Text style={styles.primaryActionText}>Crear cuenta</Text>

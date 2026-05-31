@@ -21,6 +21,7 @@ type ApiErrorPayload = {
 };
 
 type CreateNotePayload = {
+  user_id: string;
   title: string;
   type: 'note' | 'checklist' | 'idea';
   content?: string;
@@ -31,6 +32,7 @@ type CreateNotePayload = {
 };
 
 type UpdateNotePayload = {
+  user_id: string;
   title?: string;
   content?: string;
   color?: string;
@@ -105,8 +107,9 @@ async function requestVoid(path: string, init?: RequestInit): Promise<void> {
   }
 }
 
-export async function getNotes(): Promise<ApiNote[]> {
-  return requestJson<ApiNote[]>('/notes');
+export async function getNotes(userId: string): Promise<ApiNote[]> {
+  const searchParams = new URLSearchParams({ user_id: userId });
+  return requestJson<ApiNote[]>(`/notes?${searchParams.toString()}`);
 }
 
 export async function createNote(
@@ -128,25 +131,31 @@ export async function updateNote(
   });
 }
 
-export async function deleteNote(id: string): Promise<void> {
-  return requestVoid(`/notes/${id}`, {
+export async function deleteNote(id: string, userId: string): Promise<void> {
+  const searchParams = new URLSearchParams({ user_id: userId });
+  return requestVoid(`/notes/${id}?${searchParams.toString()}`, {
     method: 'DELETE',
   });
 }
 
 export async function getChecklistItems(
-  noteId: string
+  noteId: string,
+  userId: string
 ): Promise<ApiChecklistItem[]> {
-  return requestJson<ApiChecklistItem[]>(`/notes/${noteId}/checklist-items`);
+  const searchParams = new URLSearchParams({ user_id: userId });
+  return requestJson<ApiChecklistItem[]>(
+    `/notes/${noteId}/checklist-items?${searchParams.toString()}`
+  );
 }
 
 export async function createChecklistItem(
   noteId: string,
-  text: string
+  text: string,
+  userId: string
 ): Promise<ApiChecklistItem> {
   return requestJson<ApiChecklistItem>(`/notes/${noteId}/checklist-items`, {
     method: 'POST',
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, user_id: userId }),
   });
 }
 
@@ -166,8 +175,12 @@ export async function deleteChecklistItem(itemId: string): Promise<void> {
   });
 }
 
-export function mapNoteToCreatePayload(note: Note): CreateNotePayload {
+export function mapNoteToCreatePayload(
+  note: Note,
+  userId: string
+): CreateNotePayload {
   return {
+    user_id: userId,
     title: note.title,
     type: 'note',
     content: note.content,
@@ -177,9 +190,11 @@ export function mapNoteToCreatePayload(note: Note): CreateNotePayload {
 }
 
 export function mapChecklistToCreatePayload(
-  checklist: ChecklistNote
+  checklist: ChecklistNote,
+  userId: string
 ): CreateNotePayload {
   return {
+    user_id: userId,
     title: checklist.title,
     type: 'checklist',
     content: '',
@@ -188,8 +203,12 @@ export function mapChecklistToCreatePayload(
   };
 }
 
-export function mapIdeaToCreatePayload(idea: IdeaNote): CreateNotePayload {
+export function mapIdeaToCreatePayload(
+  idea: IdeaNote,
+  userId: string
+): CreateNotePayload {
   return {
+    user_id: userId,
     title: idea.title,
     type: 'idea',
     content: idea.summary,

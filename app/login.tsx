@@ -10,24 +10,41 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuthStore } from '../store/authStore';
 
 export default function LoginScreen() {
+  const router = useRouter();
   const login = useAuthStore((state) => state.login);
   const authError = useAuthStore((state) => state.authError);
   const clearAuthError = useAuthStore((state) => state.clearAuthError);
-  const isAuthLoading = useAuthStore((state) => state.isAuthLoading);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleLogin() {
     clearAuthError();
-    await login(email, password);
+    setLocalError(null);
+
+    if (!email.trim() || !password.trim()) {
+      setLocalError('Debes introducir correo y contraseña.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await login(email, password);
+      router.replace('/(tabs)/notas');
+    } catch {
+      // El store ya refleja el error visible.
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -83,10 +100,11 @@ export default function LoginScreen() {
               />
             </View>
 
+            {localError ? <Text style={styles.errorText}>{localError}</Text> : null}
             {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
 
             <Pressable
-              disabled={isAuthLoading}
+              disabled={isSubmitting}
               onPress={() => {
                 void handleLogin();
               }}
@@ -98,7 +116,7 @@ export default function LoginScreen() {
                 start={{ x: 0, y: 0.5 }}
                 style={styles.gradientButton}
               >
-                {isAuthLoading ? (
+                {isSubmitting ? (
                   <ActivityIndicator color="#F5F7FF" />
                 ) : (
                   <Text style={styles.primaryActionText}>Entrar</Text>

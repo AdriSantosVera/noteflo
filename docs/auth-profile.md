@@ -39,6 +39,22 @@ Este documento desacopla el perfil de aplicación del proveedor de autenticació
 
 En esta fase, la sesión se mantiene usando la persistencia local por defecto del Firebase JS SDK. Es la opción más segura para seguir siendo compatibles con Expo Go sin introducir dependencias nativas como `@react-native-firebase`.
 
+## Asociación de notas con el usuario
+
+Firebase Auth aporta el identificador único del usuario autenticado:
+
+`uid`
+
+Ese `uid` se envía al backend como `user_id` al crear, consultar o eliminar notas. El backend guarda ese valor en PostgreSQL dentro de la tabla `notes`, y las consultas posteriores filtran por ese mismo identificador.
+
+De esta forma:
+
+- cada nota queda asociada a un único usuario
+- cada usuario solo carga sus propias notas
+- al cerrar sesión, la app deja de mostrar notas privadas
+
+Esta fase no protege todavía la API con tokens de Firebase, pero sí introduce la primera capa de ownership funcional usando el `uid` autenticado como criterio de aislamiento de datos.
+
 ## Protección de rutas
 
 La protección se hace en `app/_layout.tsx`:

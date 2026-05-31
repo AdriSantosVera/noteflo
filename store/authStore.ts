@@ -20,6 +20,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateAvatarUrl: (avatarUrl: string | null) => Promise<void>;
   listenToAuth: () => () => void;
   clearAuthError: () => void;
 }
@@ -99,29 +100,64 @@ async function loadProfile(user: User): Promise<UserProfile> {
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   profile: null,
-  isAuthLoading: true,
+  isAuthLoading: false,
   authError: null,
 
   clearAuthError: () => set({ authError: null }),
 
   login: async (email, password) => {
+    console.log('login start');
     try {
       ensureFirebaseReady();
-      set({ isAuthLoading: true, authError: null });
-      await signInWithEmailAndPassword(auth!, email.trim(), password);
+      set({ authError: null });
+
+      const normalizedEmail = email.trim();
+      const normalizedPassword = password.trim();
+
+      if (!normalizedEmail || !normalizedPassword) {
+        throw new Error('Debes introducir correo y contraseña.');
+      }
+
+      const credential = await signInWithEmailAndPassword(
+        auth!,
+        normalizedEmail,
+        normalizedPassword
+      );
+
+      const profile = await loadProfile(credential.user);
+
+      set({
+        user: credential.user,
+        profile,
+        authError: null,
+      });
+
+      console.log('login success');
     } catch (error) {
+      console.log('login error', error);
+      if (error && typeof error === 'object') {
+        console.log(
+          'Firebase auth error code:',
+          'code' in error ? error.code : undefined
+        );
+        console.log(
+          'Firebase auth error message:',
+          'message' in error ? error.message : undefined
+        );
+      }
       set({
         authError: formatAuthError(error),
-        isAuthLoading: false,
       });
       throw error;
+    } finally {
+      console.log('login finally');
     }
   },
 
   register: async (email, password, name) => {
     try {
       ensureFirebaseReady();
-      set({ isAuthLoading: true, authError: null });
+      set({ authError: null });
 
       const credential = await createUserWithEmailAndPassword(
         auth!,
@@ -148,11 +184,21 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({
         user: credential.user,
         profile,
+        authError: null,
       });
     } catch (error) {
+      if (error && typeof error === 'object') {
+        console.log(
+          'Firebase auth error code:',
+          'code' in error ? error.code : undefined
+        );
+        console.log(
+          'Firebase auth error message:',
+          'message' in error ? error.message : undefined
+        );
+      }
       set({
         authError: formatAuthError(error),
-        isAuthLoading: false,
       });
       throw error;
     }
@@ -161,12 +207,53 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: async () => {
     try {
       ensureFirebaseReady();
-      set({ isAuthLoading: true, authError: null });
+      set({ authError: null });
       await signOut(auth!);
+      set({
+        user: null,
+        profile: null,
+      });
     } catch (error) {
       set({
         authError: formatAuthError(error),
-        isAuthLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  updateAvatarUrl: async (avatarUrl) => {
+    try {
+      ensureFirebaseReady();
+      const currentUser = auth!.currentUser;
+
+      set({ authError: null });
+
+      if (!currentUser) {
+        throw new Error('No hay una sesión activa.');
+      }
+
+      const normalizedAvatarUrl = avatarUrl?.trim() || null;
+
+      await setDoc(
+        doc(db!, 'users', currentUser.uid),
+        {
+          avatarUrl: normalizedAvatarUrl,
+        },
+        { merge: true }
+      );
+
+      set((state) => ({
+        profile: state.profile
+          ? {
+              ...state.profile,
+              avatarUrl: normalizedAvatarUrl,
+            }
+          : state.profile,
+        authError: null,
+      }));
+    } catch (error) {
+      set({
+        authError: formatAuthError(error),
       });
       throw error;
     }
@@ -188,7 +275,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       return authListenerCleanup;
     }
 
+    set({ isAuthLoading: true, authError: null });
+
     const unsubscribe = onAuthStateChanged(auth!, async (firebaseUser) => {
+      console.log('listenToAuth change', firebaseUser ? firebaseUser.uid : null);
       if (!firebaseUser) {
         set({
           user: null,
@@ -216,6 +306,14 @@ export const useAuthStore = create<AuthState>((set) => ({
           isAuthLoading: false,
         });
       }
+    }, (error) => {
+      console.log('listenToAuth error', error);
+      set({
+        user: null,
+        profile: null,
+        authError: formatAuthError(error),
+        isAuthLoading: false,
+      });
     });
 
     authListenerCleanup = () => {

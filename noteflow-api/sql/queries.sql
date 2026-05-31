@@ -3,6 +3,7 @@
 -- ni items de checklist ni etiquetas.
 SELECT
   n.id,
+  n.user_id,
   n.title,
   n.type,
   n.content,

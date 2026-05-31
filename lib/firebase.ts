@@ -12,6 +12,9 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID ?? '',
 };
 
+console.log('API_KEY', process.env.EXPO_PUBLIC_FIREBASE_API_KEY);
+console.log('PROJECT_ID', process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID);
+
 const missingConfigKeys = Object.entries(firebaseConfig)
   .filter(([, value]) => !value)
   .map(([key]) => key);
@@ -20,6 +23,12 @@ export const firebaseConfigError =
   missingConfigKeys.length > 0
     ? `Faltan variables de Firebase: ${missingConfigKeys.join(', ')}`
     : null;
+
+if (firebaseConfigError) {
+  console.log('Firebase config error', firebaseConfigError);
+} else {
+  console.log('Firebase config loaded');
+}
 
 const app =
   firebaseConfigError === null
