@@ -420,6 +420,19 @@ export default function NotesIndexScreen() {
             eyebrow="NoteFlow Dev"
             title="¿Qué quieres construir hoy?"
             subtitle="Organiza apuntes, tareas técnicas, ideas y tu ritmo de trabajo."
+            trailing={
+              <Pressable
+                onPress={() => {
+                  router.push('/login');
+                }}
+                style={({ pressed }) => [
+                  styles.loginButton,
+                  pressed ? styles.loginButtonPressed : null,
+                ]}
+              >
+                <Text style={styles.loginButtonText}>Iniciar sesión</Text>
+              </Pressable>
+            }
           />
 
           <Pressable
@@ -1363,6 +1376,24 @@ const styles = StyleSheet.create({
   interactionHintArrow: {
     fontSize: fontSizes.md,
     color: '#8DD3FF',
+  },
+  loginButton: {
+    minHeight: 40,
+    paddingHorizontal: spacing.md,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(9, 14, 26, 0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.18)',
+  },
+  loginButtonPressed: {
+    opacity: 0.88,
+  },
+  loginButtonText: {
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    color: '#F4F7FF',
   },
   notesColumn: { gap: spacing.md },
   cardPressable: { borderRadius: 22 },

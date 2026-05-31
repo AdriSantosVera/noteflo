@@ -7,6 +7,14 @@ export type EntityId = string;
 
 export type ISODateString = string;
 
+export interface UserProfile {
+  uid: EntityId;
+  name: string;
+  email: string;
+  createdAt: ISODateString;
+  avatarUrl: string | null;
+}
+
 export interface BaseNote {
   id: EntityId;
   title: string;
