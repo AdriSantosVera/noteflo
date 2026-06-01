@@ -24,6 +24,7 @@ import { MiniBarChart } from '../../../components/ui/MiniBarChart';
 import { MiniCalendar } from '../../../components/ui/MiniCalendar';
 import { SectionHeader } from '../../../components/ui/SectionHeader';
 import { StatCard } from '../../../components/ui/StatCard';
+import { getAvatarUploadUrl } from '../../../lib/api';
 import { useAuthStore } from '../../../store/authStore';
 import { useNotesStore } from '../../../store/notesStore';
 import type { AnyNote } from '../../../types';
@@ -219,6 +220,7 @@ export function NotesIndexScreen({
   const [isProfileModalVisible, setIsProfileModalVisible] = useState(false);
   const [avatarDraft, setAvatarDraft] = useState('');
   const [localAvatarUri, setLocalAvatarUri] = useState<string | null>(null);
+  const [profileActionError, setProfileActionError] = useState<string | null>(null);
   const [isSavingAvatar, setIsSavingAvatar] = useState(false);
   const [isPickingAvatar, setIsPickingAvatar] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -346,8 +348,46 @@ export function NotesIndexScreen({
 
   const displayAvatarUri = localAvatarUri ?? profile?.avatarUrl ?? null;
 
+  function isLocalAssetUri(uri: string | null) {
+    if (!uri) {
+      return false;
+    }
+
+    return (
+      uri.startsWith('file:') ||
+      uri.startsWith('blob:') ||
+      uri.startsWith('content:') ||
+      uri.startsWith('ph:') ||
+      uri.startsWith('assets-library:')
+    );
+  }
+
+  function inferFileNameFromUri(uri: string) {
+    const lastSegment = uri.split('/').pop() ?? 'avatar.jpg';
+    return lastSegment.split('?')[0] || 'avatar.jpg';
+  }
+
+  function inferContentType(uri: string) {
+    const lowerCaseUri = uri.toLowerCase();
+
+    if (lowerCaseUri.endsWith('.png')) {
+      return 'image/png';
+    }
+
+    if (lowerCaseUri.endsWith('.webp')) {
+      return 'image/webp';
+    }
+
+    if (lowerCaseUri.endsWith('.heic')) {
+      return 'image/heic';
+    }
+
+    return 'image/jpeg';
+  }
+
   const handlePickAvatar = async () => {
     try {
+      setProfileActionError(null);
       setIsPickingAvatar(true);
 
       if (Platform.OS !== 'web') {
@@ -373,6 +413,10 @@ export function NotesIndexScreen({
         setLocalAvatarUri(nextUri);
         setAvatarDraft(nextUri ?? '');
       }
+    } catch (error) {
+      setProfileActionError(
+        error instanceof Error ? error.message : 'No se pudo abrir la galería.'
+      );
     } finally {
       setIsPickingAvatar(false);
     }
@@ -883,6 +927,9 @@ export function NotesIndexScreen({
                 </Text>
               </View>
 
+              {profileActionError ? (
+                <Text style={styles.profileErrorText}>{profileActionError}</Text>
+              ) : null}
               {authError ? <Text style={styles.profileErrorText}>{authError}</Text> : null}
 
               <Pressable
@@ -890,9 +937,52 @@ export function NotesIndexScreen({
                 onPress={() => {
                   void (async () => {
                     try {
+                      setProfileActionError(null);
                       setIsSavingAvatar(true);
-                      await updateAvatarUrl(avatarDraft);
+
+                      if (!user) {
+                        throw new Error('Debes iniciar sesión para actualizar el avatar.');
+                      }
+
+                      if (isLocalAssetUri(localAvatarUri)) {
+                        const fileName = inferFileNameFromUri(localAvatarUri!);
+                        const contentType = inferContentType(localAvatarUri!);
+                        const uploadConfig = await getAvatarUploadUrl({
+                          fileName,
+                          contentType,
+                          userId: user.uid,
+                        });
+
+                        const localResponse = await fetch(localAvatarUri!);
+                        const blob = await localResponse.blob();
+
+                        const uploadResponse = await fetch(uploadConfig.signedUrl, {
+                          method: 'PUT',
+                          body: blob,
+                          headers: {
+                            'Content-Type': contentType,
+                          },
+                        });
+
+                        if (!uploadResponse.ok) {
+                          throw new Error('No se pudo subir la imagen a AWS S3.');
+                        }
+
+                        await updateAvatarUrl(uploadConfig.publicUrl);
+                        setLocalAvatarUri(uploadConfig.publicUrl);
+                        setAvatarDraft(uploadConfig.publicUrl);
+                      } else {
+                        await updateAvatarUrl(avatarDraft.trim() || null);
+                        setLocalAvatarUri(avatarDraft.trim() || null);
+                      }
+
                       setIsProfileModalVisible(false);
+                    } catch (error) {
+                      setProfileActionError(
+                        error instanceof Error
+                          ? error.message
+                          : 'No se pudo guardar el avatar.'
+                      );
                     } finally {
                       setIsSavingAvatar(false);
                     }

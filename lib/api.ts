@@ -41,6 +41,17 @@ type UpdateNotePayload = {
   end_date?: string;
 };
 
+type AvatarUploadUrlPayload = {
+  fileName: string;
+  contentType: string;
+  userId: string;
+};
+
+type AvatarUploadUrlResponse = {
+  signedUrl: string;
+  publicUrl: string;
+};
+
 async function parseErrorFromText(text: string): Promise<string> {
   try {
     const payload = JSON.parse(text) as ApiErrorPayload;
@@ -172,6 +183,15 @@ export async function updateChecklistItem(
 export async function deleteChecklistItem(itemId: string): Promise<void> {
   return requestVoid(`/checklist-items/${itemId}`, {
     method: 'DELETE',
+  });
+}
+
+export async function getAvatarUploadUrl(
+  data: AvatarUploadUrlPayload
+): Promise<AvatarUploadUrlResponse> {
+  return requestJson<AvatarUploadUrlResponse>('/uploads/avatar-url', {
+    method: 'POST',
+    body: JSON.stringify(data),
   });
 }
 
