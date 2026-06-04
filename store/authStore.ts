@@ -12,6 +12,10 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, firebaseConfigError } from '../lib/firebase';
 import type { UserProfile } from '../types';
 
+export function isRemoteImageUrl(url: string | null | undefined): url is string {
+  return typeof url === 'string' && url.startsWith('https://');
+}
+
 interface AuthState {
   user: User | null;
   profile: UserProfile | null;
@@ -85,6 +89,13 @@ async function loadProfile(user: User): Promise<UserProfile> {
 
   const data = snapshot.data() as Partial<UserProfile>;
 
+  const storedAvatarUrl = typeof data.avatarUrl === 'string' ? data.avatarUrl : null;
+  const safeAvatarUrl = isRemoteImageUrl(storedAvatarUrl) ? storedAvatarUrl : null;
+
+  if (storedAvatarUrl !== null && safeAvatarUrl === null) {
+    await setDoc(doc(db!, 'users', user.uid), { avatarUrl: null }, { merge: true });
+  }
+
   return {
     uid: user.uid,
     name: data.name ?? user.displayName ?? 'Usuario',
@@ -93,7 +104,7 @@ async function loadProfile(user: User): Promise<UserProfile> {
       typeof data.createdAt === 'string'
         ? data.createdAt
         : new Date().toISOString(),
-    avatarUrl: data.avatarUrl ?? null,
+    avatarUrl: safeAvatarUrl,
   };
 }
 
@@ -106,7 +117,6 @@ export const useAuthStore = create<AuthState>((set) => ({
   clearAuthError: () => set({ authError: null }),
 
   login: async (email, password) => {
-    console.log('login start');
     try {
       ensureFirebaseReady();
       set({ authError: null });
@@ -131,26 +141,11 @@ export const useAuthStore = create<AuthState>((set) => ({
         profile,
         authError: null,
       });
-
-      console.log('login success');
     } catch (error) {
-      console.log('login error', error);
-      if (error && typeof error === 'object') {
-        console.log(
-          'Firebase auth error code:',
-          'code' in error ? error.code : undefined
-        );
-        console.log(
-          'Firebase auth error message:',
-          'message' in error ? error.message : undefined
-        );
-      }
       set({
         authError: formatAuthError(error),
       });
       throw error;
-    } finally {
-      console.log('login finally');
     }
   },
 
@@ -187,16 +182,6 @@ export const useAuthStore = create<AuthState>((set) => ({
         authError: null,
       });
     } catch (error) {
-      if (error && typeof error === 'object') {
-        console.log(
-          'Firebase auth error code:',
-          'code' in error ? error.code : undefined
-        );
-        console.log(
-          'Firebase auth error message:',
-          'message' in error ? error.message : undefined
-        );
-      }
       set({
         authError: formatAuthError(error),
       });
@@ -233,6 +218,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
 
       const normalizedAvatarUrl = avatarUrl?.trim() || null;
+
+      if (normalizedAvatarUrl !== null && !isRemoteImageUrl(normalizedAvatarUrl)) {
+        throw new Error('El avatar debe ser una URL remota válida (https://).');
+      }
 
       await setDoc(
         doc(db!, 'users', currentUser.uid),
@@ -278,7 +267,6 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isAuthLoading: true, authError: null });
 
     const unsubscribe = onAuthStateChanged(auth!, async (firebaseUser) => {
-      console.log('listenToAuth change', firebaseUser ? firebaseUser.uid : null);
       if (!firebaseUser) {
         set({
           user: null,
@@ -307,7 +295,6 @@ export const useAuthStore = create<AuthState>((set) => ({
         });
       }
     }, (error) => {
-      console.log('listenToAuth error', error);
       set({
         user: null,
         profile: null,

@@ -1,16 +1,22 @@
-import { useEffect } from 'react';
-import { router, Stack, useSegments } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { router, Stack, useRootNavigationState, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useAuthStore } from '../store/authStore';
 import { useNotesStore } from '../store/notesStore';
 
 export default function RootLayout() {
+  const [isMounted, setIsMounted] = useState(false);
   const userId = useAuthStore((state) => state.user?.uid);
   const isAuthLoading = useAuthStore((state) => state.isAuthLoading);
   const fetchNotes = useNotesStore((state) => state.fetchNotes);
   const listenToAuth = useAuthStore((state) => state.listenToAuth);
   const segments = useSegments();
+  const rootNavigationState = useRootNavigationState();
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     const cleanup = listenToAuth();
@@ -23,7 +29,7 @@ export default function RootLayout() {
   }, [fetchNotes, userId]);
 
   useEffect(() => {
-    if (isAuthLoading) {
+    if (!isMounted || isAuthLoading || !rootNavigationState?.key) {
       return;
     }
 
@@ -40,7 +46,7 @@ export default function RootLayout() {
     if (userId && (isAuthRoute || isRootRoute)) {
       router.replace('/(tabs)/notas');
     }
-  }, [isAuthLoading, segments, userId]);
+  }, [isAuthLoading, isMounted, rootNavigationState?.key, segments, userId]);
 
   return (
     <SafeAreaProvider>

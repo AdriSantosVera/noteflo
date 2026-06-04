@@ -54,6 +54,7 @@ export async function createAvatarUploadUrl({
       accessKeyId: safeAccessKeyId,
       secretAccessKey: safeSecretAccessKey,
     },
+    requestChecksumCalculation: "WHEN_REQUIRED",
   });
 
   const objectKey = buildObjectKey(userId, fileName);

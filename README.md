@@ -1,20 +1,30 @@
 # NoteFlow Dev
 
-NoteFlow Dev es una aplicación de productividad orientada a estudiantes DAM y desarrolladores junior. El proyecto separa con claridad un frontend móvil construido con Expo y un backend independiente con Next.js, pensado para evolucionar sin mezclar responsabilidades.
+NoteFlow Dev es una aplicación móvil de productividad orientada a estudiantes DAM y perfiles junior de desarrollo. El proyecto combina una app Expo con una API independiente en Next.js para gestionar apuntes, ideas, checklists, autenticación de usuarios y perfil con avatar.
 
-El frontend resuelve la experiencia diaria de trabajo: apuntes, checklists, ideas, sesiones de enfoque y paneles visuales de productividad. El backend se encarga de exponer una API REST limpia sobre PostgreSQL para la futura sincronización de datos.
+## Descripción del proyecto
 
-## Stack
+La aplicación permite organizar trabajo personal en tres tipos de contenido:
 
-### Frontend móvil
+- `Notas`: apuntes y contenido libre.
+- `Checklists`: tareas con items completables.
+- `Ideas`: propuestas, mejoras o conceptos pendientes de desarrollar.
+
+El sistema incorpora autenticación con Firebase, perfil de usuario en Firestore, persistencia de datos en PostgreSQL (Neon) y subida de avatar a Amazon S3 mediante Presigned URL.
+
+## Tecnologías utilizadas
+
+### Frontend
 
 - Expo
 - React Native
 - TypeScript
 - Expo Router
 - Zustand
-- Zod
+- Firebase JS SDK
+- Firestore
 - AsyncStorage
+- Expo Image Picker
 - Expo Linear Gradient
 - Expo Haptics
 
@@ -24,200 +34,309 @@ El frontend resuelve la experiencia diaria de trabajo: apuntes, checklists, idea
 - TypeScript
 - Neon PostgreSQL
 - Zod
+- AWS SDK for JavaScript v3
 
-## Qué incluye el proyecto
+### Infraestructura y servicios
 
-- Creación de apuntes, tareas tipo checklist e ideas
-- Persistencia remota contra una API REST real
-- Gestión de checklist items desde el backend
-- Fechas de inicio y fin persistidas en PostgreSQL
-- Navegación móvil con Expo Router
-- Estado global con Zustand y sincronización contra servidor
+- Firebase Authentication
+- Cloud Firestore
+- Amazon S3
+- Neon
+- Vercel (preparado para despliegue del backend)
 
-## Estructura del proyecto
+## Arquitectura general
+
+El proyecto está dividido en dos capas principales:
+
+1. **Frontend Expo**
+   - interfaz móvil/web
+   - navegación con Expo Router
+   - estado global con Zustand
+   - autenticación con Firebase
+   - perfil de usuario y avatar
+
+2. **Backend Next.js**
+   - API REST para notas y checklist items
+   - generación de Presigned URLs para subida de avatar
+   - conexión a PostgreSQL en Neon
+
+### Flujo general
 
 ```text
-root/
-├── app/                  # Rutas y pantallas Expo Router
-├── assets/               # Recursos estáticos del frontend
-├── components/           # Componentes reutilizables del frontend
-├── constants/            # Tokens visuales y constantes
-├── docs/                 # Documentación general del proyecto
-├── lib/                  # Capa de acceso a la API del frontend
-├── noteflow-api/         # Backend independiente con Next.js
-├── store/                # Estado global con Zustand
-├── types/                # Tipos TypeScript compartidos
+Expo App
+  ├─ Firebase Auth → identidad del usuario
+  ├─ Firestore → perfil (users/{uid})
+  ├─ Next.js API → notas, checklists, ideas, presigned URL
+  ├─ Neon PostgreSQL → persistencia de datos funcionales
+  └─ AWS S3 → almacenamiento del avatar
+```
+
+## Estructura de carpetas
+
+```text
+noteflow/
+├── app/                     # Rutas y pantallas Expo Router
+├── assets/                  # Recursos gráficos
+├── components/              # Componentes reutilizables UI y cards
+├── constants/               # Tema visual y constantes
+├── docs/                    # Documentación funcional y técnica
+├── lib/                     # Firebase y cliente HTTP del frontend
+├── store/                   # Estado global con Zustand
+├── types/                   # Tipos de dominio y API
+├── noteflow-api/            # Backend Next.js independiente
+│   ├── app/api/             # Endpoints REST y subida de avatar
+│   ├── docs/                # Documentación backend
+│   ├── lib/                 # DB, CORS y utilidades S3
+│   └── sql/                 # Esquema y consultas SQL
+├── .env.example             # Variables de entorno del frontend
 ├── app.json
 ├── package.json
-├── tsconfig.json
 └── README.md
 ```
 
-## Frontend Expo
+## Variables de entorno necesarias
 
-El cliente móvil está organizado con Expo Router y una navegación principal por pestañas:
+### Frontend (`/.env.local`)
 
-- `Notas`: dashboard principal y acceso a apuntes
-- `Checklists`: seguimiento de tareas y progreso
-- `Ideas`: espacio para ideas y mejoras
-- `Nueva nota`: flujo modal para crear entradas nuevas
-
-El estado del frontend se gestiona con Zustand en [store/notesStore.ts](/Users/adri/Developer/noteflow/store/notesStore.ts). La fuente principal de verdad es la API. AsyncStorage queda únicamente como caché local opcional para mejorar el arranque y mantener cierta resiliencia.
-
-### Variable de entorno del frontend
-
-Crear un archivo local a partir de [.env.example](/Users/adri/Developer/noteflow/.env.example) y definir la URL base de la API:
+Basado en [/.env.example](/Users/adri/Developer/noteflow/.env.example):
 
 ```env
 EXPO_PUBLIC_API_URL=
+
+EXPO_PUBLIC_FIREBASE_API_KEY=
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+EXPO_PUBLIC_FIREBASE_APP_ID=
 ```
 
-Valores recomendados:
+Valores habituales:
 
-- simulador o navegador local:
-  - `http://localhost:3000/api`
-- iPhone físico con Expo Go:
-  - `http://192.168.1.X:3000/api`
+- navegador local:
+  - `EXPO_PUBLIC_API_URL=http://localhost:3000/api`
+- dispositivo físico con Expo Go:
+  - `EXPO_PUBLIC_API_URL=http://IP_LOCAL_DEL_MAC:3000/api`
 
-### Instalar frontend
+### Backend (`/noteflow-api/.env.local`)
 
-```bash
-npm install
-```
-
-### Ejecutar frontend
-
-```bash
-npx expo start -c
-```
-
-La app necesita que el backend esté levantado y que `EXPO_PUBLIC_API_URL` apunte a la URL correcta de la API.
-
-### Validar tipos del frontend
-
-```bash
-npx tsc --noEmit
-```
-
-## Backend Next.js
-
-El backend vive exclusivamente en [noteflow-api](/Users/adri/Developer/noteflow/noteflow-api) y no forma parte del árbol de Expo Router. Su objetivo es proporcionar una API REST desacoplada, segura y preparada para crecimiento.
-
-### Variables de entorno del backend
-
-Crear [noteflow-api/.env.local](/Users/adri/Developer/noteflow/noteflow-api/.env.local) a partir de [noteflow-api/.env.example](/Users/adri/Developer/noteflow/noteflow-api/.env.example):
+Basado en [/Users/adri/Developer/noteflow/noteflow-api/.env.example](/Users/adri/Developer/noteflow/noteflow-api/.env.example):
 
 ```env
 DATABASE_URL=
+
+AWS_REGION=
+AWS_S3_BUCKET_NAME=
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+
+ALLOWED_ORIGIN=http://localhost:8082
 ```
 
-Nunca debe incluirse la cadena real de Neon en el frontend móvil ni en el repositorio.
+## Configuración Firebase
 
-### Instalar backend
+La implementación actual usa **Firebase JS SDK**, lo que permite mantener compatibilidad con **Expo Go** sin generar un Development Build nativo.
+
+### Servicios necesarios
+
+- Authentication
+  - proveedor `Email/Password`
+- Firestore Database
+
+### Flujo implementado
+
+1. Registro con correo, contraseña y nombre.
+2. Creación de usuario en Firebase Auth.
+3. Creación de documento en `users/{uid}` en Firestore.
+4. Restauración de sesión al reabrir la app.
+5. Carga del perfil desde Firestore.
+
+### Documento de perfil
+
+```json
+{
+  "uid": "user_uid",
+  "name": "Nombre del usuario",
+  "email": "correo@dominio.com",
+  "createdAt": "ISO date",
+  "avatarUrl": "https://..."
+}
+```
+
+## Configuración AWS S3
+
+El avatar no se guarda en Firestore como archivo binario. Solo se guarda la URL final.
+
+### Requisitos
+
+- bucket S3 creado
+- credenciales AWS configuradas en `noteflow-api/.env.local`
+- CORS del bucket para permitir `PUT` desde desarrollo local
+- lectura pública para `avatars/*` si se usa `publicUrl` directa
+
+### Flujo implementado
+
+1. El frontend selecciona una imagen con `expo-image-picker`.
+2. El frontend solicita `POST /api/uploads/avatar-url`.
+3. El backend genera:
+   - `signedUrl`
+   - `publicUrl`
+4. El frontend sube el archivo con `PUT` directo a S3.
+5. La app guarda `publicUrl` en Firestore.
+6. El avatar se renderiza con `Image`.
+
+Más detalle en:
+
+- [/Users/adri/Developer/noteflow/docs/image-upload-flow.md](/Users/adri/Developer/noteflow/docs/image-upload-flow.md)
+
+## Instalación paso a paso
+
+### 1. Clonar el proyecto
+
+```bash
+git clone https://github.com/AdriSantosVera/noteflo.git
+cd noteflo
+```
+
+### 2. Instalar dependencias del frontend
+
+```bash
+npm install
+```
+
+### 3. Instalar dependencias del backend
 
 ```bash
 cd noteflow-api
 npm install
+cd ..
 ```
 
-### Ejecutar backend
+### 4. Configurar variables de entorno
+
+- crear `/.env.local`
+- crear `/noteflow-api/.env.local`
+
+### 5. Arrancar backend
 
 ```bash
 cd noteflow-api
 npm run dev
 ```
 
-Servidor local por defecto:
-
-- `http://localhost:3000`
-
-### Endpoints principales
-
-- `GET /api/notes`
-- `POST /api/notes`
-- `GET /api/notes/:id`
-- `PATCH /api/notes/:id`
-- `DELETE /api/notes/:id`
-- `GET /api/notes/:id/checklist-items`
-- `POST /api/notes/:id/checklist-items`
-- `PATCH /api/checklist-items/:itemId`
-- `DELETE /api/checklist-items/:itemId`
-
-## Flujo recomendado de arranque local
-
-1. Arrancar el backend:
-
-```bash
-cd /Users/adri/Developer/noteflow/noteflow-api
-npm install
-npm run dev
-```
-
-2. Configurar la URL de la API en el frontend:
-
-```env
-EXPO_PUBLIC_API_URL=http://localhost:3000/api
-```
-
-En iPhone físico con Expo Go, sustituir `localhost` por la IP local del Mac.
-
-3. Arrancar el frontend:
+### 6. Arrancar frontend
 
 ```bash
 cd /Users/adri/Developer/noteflow
-npm install
 npx expo start -c
 ```
 
-## PostgreSQL con Neon
+## Validación técnica
 
-La base de datos del backend utiliza Neon PostgreSQL. El esquema SQL y las consultas de referencia viven en:
+### Frontend
 
-- [noteflow-api/sql/schema.sql](/Users/adri/Developer/noteflow/noteflow-api/sql/schema.sql)
-- [noteflow-api/sql/queries.sql](/Users/adri/Developer/noteflow/noteflow-api/sql/queries.sql)
-
-## Documentación disponible
-
-### Proyecto general
-
-- [docs/idea.md](/Users/adri/Developer/noteflow/docs/idea.md)
-- [docs/project-management.md](/Users/adri/Developer/noteflow/docs/project-management.md)
-- [docs/ai-setup.md](/Users/adri/Developer/noteflow/docs/ai-setup.md)
-- [docs/react-native-teoria.md](/Users/adri/Developer/noteflow/docs/react-native-teoria.md)
+```bash
+cd /Users/adri/Developer/noteflow
+npx tsc --noEmit
+```
 
 ### Backend
 
-- [noteflow-api/README.md](/Users/adri/Developer/noteflow/noteflow-api/README.md)
-- [noteflow-api/docs/backend-teoria.md](/Users/adri/Developer/noteflow/noteflow-api/docs/backend-teoria.md)
-- [noteflow-api/docs/seguridad-api.md](/Users/adri/Developer/noteflow/noteflow-api/docs/seguridad-api.md)
-
-## Puesta en marcha rápida
-
-### Solo frontend
-
-```bash
-cd /Users/adri/Developer/noteflow
-npx expo start -c
-```
-
-Con el backend local activo, Expo leerá `EXPO_PUBLIC_API_URL` para cargar y mutar datos reales.
-
-### Solo backend
-
 ```bash
 cd /Users/adri/Developer/noteflow/noteflow-api
-npm run dev
+npx tsc --noEmit
+npm run lint
+npm run build
 ```
 
-## Estado actual
+## Características implementadas
 
-El proyecto ya separa claramente:
+- Firebase Authentication
+- Registro/Login
+- Persistencia de sesión
+- Firestore Profile
+- Gestión de notas
+- Gestión de ideas
+- Gestión de checklists
+- Selección de imágenes
+- Subida de imágenes a AWS S3
+- Renderizado de avatares
+- PostgreSQL (Neon)
+- API Next.js
 
-- cliente móvil Expo
-- backend Next.js
-- documentación funcional y técnica
+## Funcionalidades implementadas
 
-La base ya está preparada para evaluación técnica, instalación en otro equipo y evolución futura sin mezclar frontend y backend en la misma capa.
+- Creación de notas, ideas y checklists
+- Edición y eliminación de notas
+- Gestión de checklist items
+- Fechas de inicio y fin persistidas
+- Asociación de datos por usuario autenticado
+- Rutas públicas y privadas
+- Perfil de usuario con avatar
+- Carga de avatar desde galería
+- Almacenamiento remoto de avatar en S3
+
+## Capturas de pantalla
+
+Sección preparada para añadir material visual antes de la entrega:
+
+- `Login`
+- `Registro`
+- `Dashboard principal`
+- `Nueva nota`
+- `Checklists`
+- `Ideas`
+- `Perfil con avatar`
+- `Flujo de subida de imagen`
+
+## Documentación adicional
+
+### Proyecto
+
+- [/Users/adri/Developer/noteflow/docs/idea.md](/Users/adri/Developer/noteflow/docs/idea.md)
+- [/Users/adri/Developer/noteflow/docs/project-management.md](/Users/adri/Developer/noteflow/docs/project-management.md)
+- [/Users/adri/Developer/noteflow/docs/ai-setup.md](/Users/adri/Developer/noteflow/docs/ai-setup.md)
+- [/Users/adri/Developer/noteflow/docs/react-native-teoria.md](/Users/adri/Developer/noteflow/docs/react-native-teoria.md)
+- [/Users/adri/Developer/noteflow/docs/auth-profile.md](/Users/adri/Developer/noteflow/docs/auth-profile.md)
+- [/Users/adri/Developer/noteflow/docs/image-upload-flow.md](/Users/adri/Developer/noteflow/docs/image-upload-flow.md)
+
+### Backend
+
+- [/Users/adri/Developer/noteflow/noteflow-api/README.md](/Users/adri/Developer/noteflow/noteflow-api/README.md)
+- [/Users/adri/Developer/noteflow/noteflow-api/docs/backend-teoria.md](/Users/adri/Developer/noteflow/noteflow-api/docs/backend-teoria.md)
+- [/Users/adri/Developer/noteflow/noteflow-api/docs/seguridad-api.md](/Users/adri/Developer/noteflow/noteflow-api/docs/seguridad-api.md)
+
+## Pendiente / Futuras mejoras
+
+- Protección real del backend con verificación de tokens Firebase
+- Reglas de seguridad más estrictas en Firestore
+- Gestión avanzada de errores y estados offline
+- Caché y placeholders mejorados para imágenes remotas
+- Soporte de cámara además de galería
+- Migración a `@react-native-firebase` si se exige stack nativo
+- Despliegue estable de frontend web y backend en producción
+- Tests automatizados unitarios e integración
+- Mejora del flujo multiusuario y permisos de datos
+
+## Posibles mejoras futuras
+
+- Sincronización en tiempo real
+- Etiquetas avanzadas y filtros
+- Búsqueda global
+- Archivado y restauración
+- Notificaciones y recordatorios
+- Métricas personales más avanzadas
+
+## Estado de entrega
+
+El proyecto está preparado como base académica profesional:
+
+- frontend funcional con Expo
+- backend independiente con Next.js
+- autenticación con Firebase
+- datos persistidos en Neon
+- avatar subido a AWS S3
+- documentación técnica preparada para evaluación
 
 ## Repositorio
 

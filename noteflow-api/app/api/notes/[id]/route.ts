@@ -137,7 +137,6 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
     const body = await request.json();
-    console.log(`PATCH /api/notes/${id} body:`, body);
     const result = updateNoteSchema.safeParse(body);
 
     if (!result.success) {
@@ -254,7 +253,6 @@ export async function DELETE(_request: Request, context: RouteContext) {
     const { id } = await context.params;
     const { searchParams } = new URL(_request.url);
     const userId = searchParams.get("user_id")?.trim();
-    console.log(`DELETE /api/notes/${id}`);
     if (!userId) {
       return withCors(NextResponse.json({ error: "Falta user_id" }, { status: 400 }), _request);
     }

@@ -25,7 +25,7 @@ import { MiniCalendar } from '../../../components/ui/MiniCalendar';
 import { SectionHeader } from '../../../components/ui/SectionHeader';
 import { StatCard } from '../../../components/ui/StatCard';
 import { getAvatarUploadUrl } from '../../../lib/api';
-import { useAuthStore } from '../../../store/authStore';
+import { isRemoteImageUrl, useAuthStore } from '../../../store/authStore';
 import { useNotesStore } from '../../../store/notesStore';
 import type { AnyNote } from '../../../types';
 
@@ -339,11 +339,13 @@ export function NotesIndexScreen({
   );
 
   useEffect(() => {
-    setAvatarDraft(profile?.avatarUrl ?? '');
+    const url = profile?.avatarUrl ?? '';
+    setAvatarDraft(url.startsWith('blob:') ? '' : url);
   }, [profile?.avatarUrl]);
 
   useEffect(() => {
-    setLocalAvatarUri(profile?.avatarUrl ?? null);
+    const url = profile?.avatarUrl ?? null;
+    setLocalAvatarUri(url?.startsWith('blob:') ? null : url);
   }, [profile?.avatarUrl]);
 
   const displayAvatarUri = localAvatarUri ?? profile?.avatarUrl ?? null;
@@ -972,8 +974,12 @@ export function NotesIndexScreen({
                         setLocalAvatarUri(uploadConfig.publicUrl);
                         setAvatarDraft(uploadConfig.publicUrl);
                       } else {
-                        await updateAvatarUrl(avatarDraft.trim() || null);
-                        setLocalAvatarUri(avatarDraft.trim() || null);
+                        const url = avatarDraft.trim() || null;
+                        if (url !== null && !isRemoteImageUrl(url)) {
+                          throw new Error('El avatar debe ser una URL https:// válida.');
+                        }
+                        await updateAvatarUrl(url);
+                        setLocalAvatarUri(url);
                       }
 
                       setIsProfileModalVisible(false);

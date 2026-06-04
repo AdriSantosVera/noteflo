@@ -1,28 +1,35 @@
 import { NextResponse } from "next/server";
 
-function isAllowedOrigin(origin: string): boolean {
-  return (
-    origin.startsWith("http://localhost:") ||
-    origin.startsWith("http://127.0.0.1:") ||
-    origin.startsWith("http://192.168.")
-  );
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? process.env.ALLOWED_ORIGIN ?? "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+function resolveOrigin(request: Request): string {
+  const requestOrigin = request.headers.get("Origin") ?? "";
+  if (ALLOWED_ORIGINS.length === 0) return requestOrigin;
+  return ALLOWED_ORIGINS.includes(requestOrigin) ? requestOrigin : ALLOWED_ORIGINS[0];
 }
 
 export function withCors(response: NextResponse, request: Request): NextResponse {
-  const origin = request.headers.get("origin");
+  const wantsPrivateNetwork = request.headers.get("Access-Control-Request-Private-Network");
 
-  if (!origin || !isAllowedOrigin(origin)) {
-    return response;
-  }
-
-  response.headers.set("Access-Control-Allow-Origin", origin);
+  response.headers.set("Access-Control-Allow-Origin", resolveOrigin(request));
   response.headers.set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
-  response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  response.headers.set("Vary", "Origin");
+  response.headers.set(
+    "Access-Control-Allow-Headers",
+    request.headers.get("Access-Control-Request-Headers") ?? "Content-Type, Authorization"
+  );
+  response.headers.set("Access-Control-Max-Age", "86400");
+  if (wantsPrivateNetwork === "true") {
+    response.headers.set("Access-Control-Allow-Private-Network", "true");
+  }
+  response.headers.set("Vary", "Access-Control-Request-Headers, Access-Control-Request-Private-Network");
 
   return response;
 }
 
 export function corsPreflight(request: Request): NextResponse {
-  return withCors(new NextResponse(null, { status: 204 }), request);
+  const response = new NextResponse(null, { status: 204 });
+  return withCors(response, request);
 }

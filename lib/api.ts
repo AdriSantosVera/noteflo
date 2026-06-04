@@ -72,7 +72,6 @@ async function requestJson<T>(
   }
 
   const url = `${BASE_URL}${path}`;
-  console.log('API URL:', url);
 
   const response = await fetch(url, {
     ...init,
@@ -82,9 +81,6 @@ async function requestJson<T>(
     },
   });
   const text = await response.text();
-
-  console.log('status:', response.status);
-  console.log('body:', text);
 
   if (!response.ok) {
     throw new Error(await parseErrorFromText(text));
@@ -105,13 +101,9 @@ async function requestVoid(path: string, init?: RequestInit): Promise<void> {
   }
 
   const url = `${BASE_URL}${path}`;
-  console.log('API URL:', url);
 
   const response = await fetch(url, init);
   const text = await response.text();
-
-  console.log('status:', response.status);
-  console.log('body:', text);
 
   if (!response.ok) {
     throw new Error(await parseErrorFromText(text));

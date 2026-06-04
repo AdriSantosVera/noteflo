@@ -111,7 +111,6 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    console.log("POST /api/notes body:", body);
     const result = createNoteSchema.safeParse(body);
 
     if (!result.success) {
