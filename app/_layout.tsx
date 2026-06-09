@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { router, Stack, useRootNavigationState, useSegments } from 'expo-router';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { requestNotificationPermissions, setupAndroidChannel } from '../lib/notifications';
 import { useAuthStore } from '../store/authStore';
 import { useNotesStore } from '../store/notesStore';
 
@@ -29,6 +31,12 @@ export default function RootLayout() {
   }, [fetchNotes, userId]);
 
   useEffect(() => {
+    if (!userId) return;
+    void setupAndroidChannel();
+    void requestNotificationPermissions();
+  }, [userId]);
+
+  useEffect(() => {
     if (!isMounted || isAuthLoading || !rootNavigationState?.key) {
       return;
     }
@@ -49,19 +57,21 @@ export default function RootLayout() {
   }, [isAuthLoading, isMounted, rootNavigationState?.key, segments, userId]);
 
   return (
-    <SafeAreaProvider>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="login" options={{ headerShown: false }} />
-        <Stack.Screen name="registro" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="nueva-nota"
-          options={{
-            presentation: 'modal',
-            headerShown: false,
-          }}
-        />
-      </Stack>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="registro" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="nueva-nota"
+            options={{
+              presentation: 'modal',
+              headerShown: false,
+            }}
+          />
+        </Stack>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

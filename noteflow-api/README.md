@@ -1,8 +1,13 @@
 # NoteFlow API
 
-Backend independiente para **NoteFlow Dev**, construido con **Next.js App Router**, **TypeScript**, **Neon PostgreSQL** y **Zod**.
+Backend independiente de **NoteFlow Dev**, construido con **Next.js**, **TypeScript**, **Neon PostgreSQL**, **Zod** y **AWS SDK v3**.
 
-Este proyecto no toca la app móvil Expo. Su función es ofrecer una base de backend limpia, segura y preparada para crecer después con autenticación, sincronización y reglas de negocio más avanzadas.
+Su función es ofrecer:
+
+- API REST para notas, ideas y checklists;
+- ownership de datos por usuario (`user_id`);
+- validación de entradas;
+- generación de Presigned URLs para subida de avatar a AWS S3.
 
 ## Stack técnico
 
@@ -10,68 +15,67 @@ Este proyecto no toca la app móvil Expo. Su función es ofrecer una base de bac
 - TypeScript
 - Neon PostgreSQL
 - Zod
+- AWS SDK for JavaScript v3
 
-## Qué resuelve este backend
+## Responsabilidades del backend
 
-La API actúa como capa intermedia entre la app Expo y PostgreSQL. Su responsabilidad es:
-
-- validar entradas con Zod
-- ejecutar consultas SQL parametrizadas
-- proteger la base de datos de exposición directa
-- devolver datos estructurados para notas, checklists e ideas
+- validar peticiones HTTP;
+- consultar y mutar PostgreSQL;
+- devolver datos estructurados al frontend;
+- aplicar CORS para desarrollo;
+- generar URLs firmadas para S3.
 
 ## Estructura
 
 ```text
 noteflow-api/
-  app/
-    api/
-      notes/
-        route.ts
-        [id]/
-          route.ts
-          checklist-items/
-            route.ts
-      checklist-items/
-        [itemId]/
-          route.ts
-  docs/
-    backend-teoria.md
-    seguridad-api.md
-  lib/
-    db.ts
-  sql/
-    schema.sql
-    queries.sql
-  .env.example
-  README.md
-  package.json
+├── app/
+│   ├── api/
+│   │   ├── checklist-items/
+│   │   │   └── [itemId]/route.ts
+│   │   ├── notes/
+│   │   │   ├── route.ts
+│   │   │   └── [id]/
+│   │   │       ├── route.ts
+│   │   │       └── checklist-items/route.ts
+│   │   └── uploads/
+│   │       └── avatar-url/route.ts
+│   ├── globals.css
+│   ├── layout.tsx
+│   └── page.tsx
+├── docs/
+├── lib/
+│   ├── cors.ts
+│   ├── db.ts
+│   └── s3.ts
+├── sql/
+│   ├── queries.sql
+│   └── schema.sql
+├── .env.example
+├── package.json
+└── README.md
 ```
 
 ## Variables de entorno
 
-1. Copia el archivo de ejemplo:
-
-```bash
-cp .env.example .env.local
-```
-
-2. Añade tu cadena de conexión de Neon:
+Crear `.env.local` a partir de `.env.example`:
 
 ```env
-DATABASE_URL=postgres://...
+DATABASE_URL=postgresql://...
+
+AWS_REGION=
+AWS_S3_BUCKET_NAME=
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+
+ALLOWED_ORIGIN=http://localhost:8082
 ```
 
-`.env.local` no debe subirse al repositorio. Ya está cubierto por `.gitignore`.
-
-## Instalación rápida
+## Instalación
 
 ```bash
 npm install
-cp .env.example .env.local
 ```
-
-Después, define `DATABASE_URL` con tu cadena de conexión real de Neon.
 
 ## Ejecución local
 
@@ -79,62 +83,54 @@ Después, define `DATABASE_URL` con tu cadena de conexión real de Neon.
 npm run dev
 ```
 
-Servidor por defecto:
+Servidor local:
 
 - `http://localhost:3000`
 
-Comprobación inicial:
+## Preparar Neon
 
-- `GET http://localhost:3000/api/notes`
+1. Crear proyecto en Neon.
+2. Configurar `DATABASE_URL`.
+3. Ejecutar `sql/schema.sql`.
+4. Si la tabla ya existía, aplicar migraciones adicionales necesarias.
 
-## Preparar la base de datos en Neon
+### Campos relevantes en `notes`
 
-1. Abre tu proyecto en Neon.
-2. Entra en el SQL Editor.
-3. Copia el contenido de `sql/schema.sql`.
-4. Ejecuta el script para crear tablas, claves y relaciones.
+- `user_id`
+- `start_date`
+- `end_date`
+- `latitude`
+- `longitude`
+- `location_name`
 
-Si la tabla `notes` ya existía antes de añadir fechas, ejecuta también:
-
-```sql
-ALTER TABLE notes ADD COLUMN IF NOT EXISTS start_date TIMESTAMPTZ;
-ALTER TABLE notes ADD COLUMN IF NOT EXISTS end_date TIMESTAMPTZ;
-```
-
-La consulta compleja de ejemplo para recuperar notas con items y tags está documentada en `sql/queries.sql`.
-
-## Endpoints disponibles
+## Endpoints implementados
 
 ### Notas
 
-- `GET /api/notes`
+- `GET /api/notes?user_id=...`
 - `POST /api/notes`
-- `GET /api/notes/:id`
+- `GET /api/notes/:id?user_id=...`
 - `PATCH /api/notes/:id`
-- `DELETE /api/notes/:id`
+- `DELETE /api/notes/:id?user_id=...`
 
-### Items de checklist
+### Checklist items
 
 - `GET /api/notes/:id/checklist-items`
 - `POST /api/notes/:id/checklist-items`
 - `PATCH /api/checklist-items/:itemId`
 - `DELETE /api/checklist-items/:itemId`
 
-## Ejemplos de request/response
+### Avatares
 
-### Crear una nota
+- `POST /api/uploads/avatar-url`
 
-```http
-POST /api/notes
-Content-Type: application/json
+Body esperado:
 
+```json
 {
-  "title": "Preparar backend de NoteFlow",
-  "type": "note",
-  "content": "Levantar API REST con Next.js y Neon",
-  "color": "#67D8FF",
-  "start_date": "2026-05-24T08:00:00.000Z",
-  "end_date": "2026-05-24T10:00:00.000Z"
+  "fileName": "avatar.jpg",
+  "contentType": "image/jpeg",
+  "userId": "firebase_uid"
 }
 ```
 
@@ -142,97 +138,63 @@ Respuesta:
 
 ```json
 {
-  "id": "f3122e8c-5c0c-4409-8e61-e29cc5ef1bd9",
-  "title": "Preparar backend de NoteFlow",
-  "type": "note",
-  "content": "Levantar API REST con Next.js y Neon",
-  "color": "#67D8FF",
-  "start_date": "2026-05-24T08:00:00.000Z",
-  "end_date": "2026-05-24T10:00:00.000Z",
-  "createdAt": "2026-05-19T17:00:00.000Z",
-  "updatedAt": "2026-05-19T17:00:00.000Z",
-  "checklistItems": [],
-  "tags": []
+  "signedUrl": "https://...",
+  "publicUrl": "https://..."
 }
 ```
 
-### Crear un item de checklist
+## Modelo de datos
 
-```http
-POST /api/notes/:id/checklist-items
-Content-Type: application/json
+### `notes`
 
-{
-  "text": "Definir esquema SQL"
-}
-```
+- contenido principal del usuario;
+- filtrado por `user_id`;
+- soporta notas, ideas y checklists.
 
-### Actualizar una nota
+### `checklist_items`
 
-```http
-PATCH /api/notes/:id
-Content-Type: application/json
+- elementos asociados a una nota tipo checklist.
 
-{
-  "title": "Preparar backend actualizado",
-  "start_date": "2026-05-24T09:00:00.000Z",
-  "end_date": "2026-05-24T11:30:00.000Z"
-}
-```
+### `note_tags`
 
-### Eliminar una nota
+- etiquetas para ideas o notas.
 
-```http
-DELETE /api/notes/:id
-```
+## Seguridad y validación
 
-Respuesta esperada:
+- validación con Zod;
+- consultas parametrizadas;
+- `DATABASE_URL` aislada del frontend;
+- CORS configurado para desarrollo local;
+- la seguridad fuerte basada en tokens Firebase sigue siendo una mejora futura.
 
-```http
-204 No Content
-```
+## Despliegue
 
-### Marcar un item como completado
+El backend está preparado para desplegarse en Vercel usando `noteflow-api` como raíz del proyecto.
 
-```http
-PATCH /api/checklist-items/:itemId
-Content-Type: application/json
+Variables mínimas necesarias en producción:
 
-{
-  "is_completed": true
-}
-```
+- `DATABASE_URL`
+- `AWS_REGION`
+- `AWS_S3_BUCKET_NAME`
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
 
-## Validación y seguridad
+## Relación con el frontend
 
-- Las entradas se validan con Zod.
-- Las consultas SQL son parametrizadas.
-- Los errores internos no se exponen al cliente.
-- `DATABASE_URL` nunca debe vivir en la app móvil.
-
-Más detalle:
-
-- [docs/backend-teoria.md](./docs/backend-teoria.md)
-- [docs/seguridad-api.md](./docs/seguridad-api.md)
-
-## Despliegue en Vercel
-
-1. Importa el repositorio en Vercel.
-2. Define la raíz del proyecto como `noteflow-api`.
-3. Añade la variable de entorno `DATABASE_URL`.
-4. Despliega.
-
-Al estar construido con Next.js App Router, el proyecto es compatible con despliegue directo en Vercel sin cambios adicionales.
-
-## Relación con el frontend Expo
-
-Este backend está pensado para ser consumido por el frontend principal de NoteFlow Dev. En la app Expo, la variable:
+El frontend Expo consume esta API mediante:
 
 ```env
 EXPO_PUBLIC_API_URL=
 ```
 
-debe apuntar a esta API, por ejemplo:
+Ejemplos:
 
-- desarrollo web o simulador: `http://localhost:3000/api`
-- iPhone físico con Expo Go: `http://IP_DEL_MAC:3000/api`
+- navegador local:
+  - `http://localhost:3000/api`
+- dispositivo físico:
+  - `http://IP_LOCAL_DEL_MAC:3000/api`
+
+## Documentación adicional
+
+- [backend-teoria.md](./docs/backend-teoria.md)
+- [seguridad-api.md](./docs/seguridad-api.md)

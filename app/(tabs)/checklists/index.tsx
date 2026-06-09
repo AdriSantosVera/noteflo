@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
+
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -133,14 +134,17 @@ export default function ChecklistsIndexScreen() {
               />
             ) : visibleChecklists.length > 0 ? (
               <View style={styles.cardsColumn}>
-                {visibleChecklists.map((checklist) => {
+                {visibleChecklists.map((checklist, index) => {
                   const completed = checklist.items.filter((item) => item.completed).length;
                   const total = checklist.items.length;
                   const progress = total > 0 ? completed / total : 0;
                   const tag = resolveChecklistTag(checklist.title);
 
                   return (
-                    <GlassPanel key={checklist.id} style={styles.checklistCard} contentStyle={styles.cardContent}>
+                    <View
+                      key={checklist.id}
+                    >
+                    <GlassPanel style={styles.checklistCard} contentStyle={styles.cardContent}>
                       <Pressable
                         onPress={() => router.push(`/(tabs)/checklists/${checklist.id}`)}
                         style={({ pressed }) => [styles.cardPressable, pressed ? styles.cardPressablePressed : null]}
@@ -175,6 +179,7 @@ export default function ChecklistsIndexScreen() {
                         ))}
                       </View>
                     </GlassPanel>
+                    </View>
                   );
                 })}
               </View>

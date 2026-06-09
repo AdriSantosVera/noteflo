@@ -29,6 +29,9 @@ type CreateNotePayload = {
   tags?: string[];
   start_date?: string;
   end_date?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  location_name?: string | null;
 };
 
 type UpdateNotePayload = {
@@ -39,6 +42,9 @@ type UpdateNotePayload = {
   tags?: string[];
   start_date?: string;
   end_date?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  location_name?: string | null;
 };
 
 type AvatarUploadUrlPayload = {
@@ -198,6 +204,9 @@ export function mapNoteToCreatePayload(
     content: note.content,
     start_date: note.startDate,
     end_date: note.endDate,
+    latitude: note.latitude,
+    longitude: note.longitude,
+    location_name: note.location_name,
   };
 }
 
@@ -212,6 +221,9 @@ export function mapChecklistToCreatePayload(
     content: '',
     start_date: checklist.startDate,
     end_date: checklist.endDate,
+    latitude: checklist.latitude,
+    longitude: checklist.longitude,
+    location_name: checklist.location_name,
   };
 }
 
@@ -228,6 +240,9 @@ export function mapIdeaToCreatePayload(
     tags: idea.tags,
     start_date: idea.startDate,
     end_date: idea.endDate,
+    latitude: idea.latitude,
+    longitude: idea.longitude,
+    location_name: idea.location_name,
   };
 }
 

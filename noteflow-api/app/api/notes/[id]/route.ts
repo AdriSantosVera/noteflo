@@ -25,6 +25,9 @@ type NoteRow = {
   updated_at: string;
   checklist_items: unknown[] | null;
   tags: string[] | null;
+  latitude: number | null;
+  longitude: number | null;
+  location_name: string | null;
 };
 
 const updateNoteSchema = z
@@ -38,6 +41,9 @@ const updateNoteSchema = z
     endDate: z.string().trim().nullable().optional(),
     start_date: z.string().trim().nullable().optional(),
     end_date: z.string().trim().nullable().optional(),
+    latitude: z.number().nullable().optional(),
+    longitude: z.number().nullable().optional(),
+    location_name: z.string().trim().nullable().optional(),
   })
   .refine(
     (value) =>
@@ -48,7 +54,10 @@ const updateNoteSchema = z
       value.startDate !== undefined ||
       value.endDate !== undefined ||
       value.start_date !== undefined ||
-      value.end_date !== undefined,
+      value.end_date !== undefined ||
+      value.latitude !== undefined ||
+      value.longitude !== undefined ||
+      value.location_name !== undefined,
     {
       message: "Debes enviar al menos un campo para actualizar.",
     },
@@ -64,6 +73,9 @@ const noteByIdQuery = `
     n.color,
     n.start_date,
     n.end_date,
+    n.latitude,
+    n.longitude,
+    n.location_name,
     n.created_at,
     n.updated_at,
     COALESCE(
@@ -104,6 +116,9 @@ function mapNote(row: NoteRow) {
     end_date: row.end_date,
     startDate: row.start_date,
     endDate: row.end_date,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    location_name: row.location_name,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     checklistItems: row.checklist_items ?? [],
@@ -159,6 +174,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       endDate,
       start_date,
       end_date,
+      latitude,
+      longitude,
+      location_name,
     } = result.data;
     const normalizedStartDate = start_date ?? startDate;
     const normalizedEndDate = end_date ?? endDate;
@@ -171,6 +189,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       color: string | null;
       start_date: string | null;
       end_date: string | null;
+      latitude: number | null;
+      longitude: number | null;
+      location_name: string | null;
       created_at: string;
       updated_at: string;
     }>(
@@ -182,10 +203,13 @@ export async function PATCH(request: Request, context: RouteContext) {
           color = COALESCE($3, color),
           start_date = COALESCE($4, start_date),
           end_date = COALESCE($5, end_date),
+          latitude = COALESCE($8, latitude),
+          longitude = COALESCE($9, longitude),
+          location_name = COALESCE($10, location_name),
           updated_at = NOW()
         WHERE id = $6
           AND user_id = $7
-        RETURNING id, user_id, title, type, content, color, start_date, end_date, created_at, updated_at
+        RETURNING id, user_id, title, type, content, color, start_date, end_date, latitude, longitude, location_name, created_at, updated_at
       `,
       [
         title ?? null,
@@ -195,6 +219,9 @@ export async function PATCH(request: Request, context: RouteContext) {
         normalizedEndDate ?? null,
         id,
         user_id,
+        latitude ?? null,
+        longitude ?? null,
+        location_name ?? null,
       ],
     );
 
@@ -239,6 +266,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       end_date: updated.end_date,
       startDate: updated.start_date,
       endDate: updated.end_date,
+      latitude: updated.latitude,
+      longitude: updated.longitude,
+      location_name: updated.location_name,
       createdAt: updated.created_at,
       updatedAt: updated.updated_at,
       tags: tags ?? [],

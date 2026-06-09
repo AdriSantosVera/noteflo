@@ -39,3 +39,8 @@ CREATE INDEX IF NOT EXISTS idx_notes_type ON notes(type);
 CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes(user_id);
 CREATE INDEX IF NOT EXISTS idx_checklist_items_note_id ON checklist_items(note_id);
 CREATE INDEX IF NOT EXISTS idx_note_tags_note_id ON note_tags(note_id);
+
+-- Migración geolocalización (ejecutar en Neon si la tabla ya existe):
+-- ALTER TABLE notes ADD COLUMN IF NOT EXISTS latitude      DOUBLE PRECISION;
+-- ALTER TABLE notes ADD COLUMN IF NOT EXISTS longitude     DOUBLE PRECISION;
+-- ALTER TABLE notes ADD COLUMN IF NOT EXISTS location_name TEXT;

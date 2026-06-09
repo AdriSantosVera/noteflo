@@ -22,6 +22,9 @@ export interface BaseNote {
   updatedAt: ISODateString;
   startDate?: ISODateString;
   endDate?: ISODateString;
+  latitude?: number | null;
+  longitude?: number | null;
+  location_name?: string | null;
 }
 
 export interface Note extends BaseNote {
@@ -58,6 +61,9 @@ export interface ApiNote {
   updatedAt: ISODateString;
   checklistItems: ApiChecklistItem[];
   tags: string[];
+  latitude?: number | null;
+  longitude?: number | null;
+  location_name?: string | null;
 }
 
 export interface ChecklistNote extends BaseNote {
@@ -85,6 +91,12 @@ export function mapApiChecklistItemToChecklistItem(
 }
 
 export function mapApiNoteToNote(apiNote: ApiNote): AnyNote {
+  const locationFields = {
+    latitude: apiNote.latitude ?? null,
+    longitude: apiNote.longitude ?? null,
+    location_name: apiNote.location_name ?? null,
+  };
+
   if (apiNote.type === 'note') {
     return {
       id: apiNote.id,
@@ -95,6 +107,7 @@ export function mapApiNoteToNote(apiNote: ApiNote): AnyNote {
       endDate: apiNote.end_date ?? apiNote.endDate ?? undefined,
       createdAt: apiNote.createdAt,
       updatedAt: apiNote.updatedAt,
+      ...locationFields,
     };
   }
 
@@ -108,6 +121,7 @@ export function mapApiNoteToNote(apiNote: ApiNote): AnyNote {
       endDate: apiNote.end_date ?? apiNote.endDate ?? undefined,
       createdAt: apiNote.createdAt,
       updatedAt: apiNote.updatedAt,
+      ...locationFields,
     };
   }
 
@@ -122,5 +136,6 @@ export function mapApiNoteToNote(apiNote: ApiNote): AnyNote {
     endDate: apiNote.end_date ?? apiNote.endDate ?? undefined,
     createdAt: apiNote.createdAt,
     updatedAt: apiNote.updatedAt,
+    ...locationFields,
   };
 }

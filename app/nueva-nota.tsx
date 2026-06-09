@@ -19,6 +19,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { z } from 'zod';
 
 import { fontSizes, spacing } from '../constants/theme';
+import {
+  getCurrentLocation,
+  promptOpenLocationSettings,
+  requestLocationPermission,
+  type LocationData,
+} from '../lib/location';
 import { useNotesStore } from '../store/notesStore';
 import type { ChecklistItem, ChecklistNote, IdeaNote, Note } from '../types';
 
@@ -92,8 +98,34 @@ export default function NuevaNotaScreen() {
   const [calendarTarget, setCalendarTarget] = useState<DateField | null>(null);
   const [calendarMonth, setCalendarMonth] = useState(() => startOfMonth(new Date()));
   const [errors, setErrors] = useState<FormErrors>({});
+  const [location, setLocation] = useState<LocationData | null>(null);
+  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
 
   const calendarDays = useMemo(() => buildCalendarDays(calendarMonth), [calendarMonth]);
+
+  const handleAddLocation = () => {
+    if (Platform.OS === 'web') return;
+
+    if (location !== null) {
+      setLocation(null);
+      return;
+    }
+
+    void (async () => {
+      setIsFetchingLocation(true);
+      try {
+        const granted = await requestLocationPermission();
+        if (!granted) {
+          promptOpenLocationSettings();
+          return;
+        }
+        const result = await getCurrentLocation();
+        setLocation(result);
+      } finally {
+        setIsFetchingLocation(false);
+      }
+    })();
+  };
 
   const handleSave = async () => {
     const normalizedTitle = title.trim();
@@ -132,6 +164,9 @@ export default function NuevaNotaScreen() {
         updatedAt: now,
         startDate: startDateIso,
         endDate: endDateIso,
+        latitude: location?.latitude ?? null,
+        longitude: location?.longitude ?? null,
+        location_name: location?.location_name ?? null,
       };
 
       const created = await addNote(note);
@@ -152,6 +187,9 @@ export default function NuevaNotaScreen() {
         updatedAt: now,
         startDate: startDateIso,
         endDate: endDateIso,
+        latitude: location?.latitude ?? null,
+        longitude: location?.longitude ?? null,
+        location_name: location?.location_name ?? null,
       };
 
       const created = await addChecklist(checklist);
@@ -173,6 +211,9 @@ export default function NuevaNotaScreen() {
       updatedAt: now,
       startDate: startDateIso,
       endDate: endDateIso,
+      latitude: location?.latitude ?? null,
+      longitude: location?.longitude ?? null,
+      location_name: location?.location_name ?? null,
     };
 
     const created = await addIdea(idea);
@@ -446,6 +487,34 @@ export default function NuevaNotaScreen() {
                     </View>
                   </FieldShell>
                 </>
+              ) : null}
+
+              {Platform.OS !== 'web' ? (
+                <Pressable
+                  disabled={isFetchingLocation}
+                  onPress={handleAddLocation}
+                  style={({ pressed }) => [
+                    styles.locationButton,
+                    location !== null ? styles.locationButtonActive : null,
+                    pressed ? styles.locationButtonPressed : null,
+                  ]}
+                >
+                  <Ionicons
+                    name={location !== null ? 'location' : 'location-outline'}
+                    size={16}
+                    color={location !== null ? '#67E8F9' : '#8DA1C8'}
+                  />
+                  <Text style={[styles.locationButtonText, location !== null ? styles.locationButtonTextActive : null]}>
+                    {isFetchingLocation
+                      ? 'Obteniendo ubicación...'
+                      : location !== null
+                        ? location.location_name
+                        : 'Añadir ubicación actual'}
+                  </Text>
+                  {location !== null ? (
+                    <Ionicons name="close-circle" size={16} color="#67E8F9" />
+                  ) : null}
+                </Pressable>
               ) : null}
 
               <View style={styles.actionsRow}>
@@ -1021,6 +1090,34 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     lineHeight: 22,
     color: '#FCA5A5',
+  },
+  locationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    minHeight: 48,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.14)',
+    backgroundColor: 'rgba(8, 12, 22, 0.72)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  locationButtonActive: {
+    borderColor: 'rgba(103, 232, 249, 0.28)',
+    backgroundColor: 'rgba(103, 232, 249, 0.08)',
+  },
+  locationButtonPressed: {
+    opacity: 0.88,
+  },
+  locationButtonText: {
+    flex: 1,
+    fontSize: fontSizes.sm,
+    fontWeight: '600',
+    color: '#8DA1C8',
+  },
+  locationButtonTextActive: {
+    color: '#CFE7FF',
   },
   modalBackdrop: {
     flex: 1,

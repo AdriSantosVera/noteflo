@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,6 +28,7 @@ import { StatCard } from '../../../components/ui/StatCard';
 import { getAvatarUploadUrl } from '../../../lib/api';
 import { isRemoteImageUrl, useAuthStore } from '../../../store/authStore';
 import { useNotesStore } from '../../../store/notesStore';
+import { SwipeableCard } from '../../../components/SwipeableCard';
 import type { AnyNote } from '../../../types';
 
 type WeeklyBar = {
@@ -214,6 +216,7 @@ export function NotesIndexScreen({
   const ideas = useNotesStore((state) => state.ideas);
   const isLoading = useNotesStore((state) => state.isLoading);
   const error = useNotesStore((state) => state.error);
+  const deleteNote = useNotesStore((state) => state.deleteNote);
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
   const [isChartVisible, setIsChartVisible] = useState(false);
   const [isFocusModalVisible, setIsFocusModalVisible] = useState(false);
@@ -785,22 +788,26 @@ export function NotesIndexScreen({
             ) : recentNotes.length > 0 ? (
               <View style={styles.notesColumn}>
                 {recentNotes.map((note) => (
-                  <Pressable
+                  <SwipeableCard
                     key={note.id}
-                    onPress={() =>
-                      isPublicView || !user
-                        ? router.push('/login')
-                        : router.push(`/(tabs)/notas/${note.id}`)
-                    }
-                    style={({ pressed }) => [styles.cardPressable, pressed ? styles.cardPressablePressed : null]}
+                    onDelete={() => { void deleteNote(note.id); }}
                   >
-                    <GlassPanel style={styles.noteCard} contentStyle={styles.noteCardContentWrap}>
-                      <Text style={styles.noteCardTitle}>{note.title}</Text>
-                      <Text numberOfLines={2} style={styles.noteCardContent}>
-                        {note.content}
-                      </Text>
-                    </GlassPanel>
-                  </Pressable>
+                    <Pressable
+                      onPress={() =>
+                        isPublicView || !user
+                          ? router.push('/login')
+                          : router.push(`/(tabs)/notas/${note.id}`)
+                      }
+                      style={({ pressed }) => [styles.cardPressable, pressed ? styles.cardPressablePressed : null]}
+                    >
+                      <GlassPanel style={styles.noteCard} contentStyle={styles.noteCardContentWrap}>
+                        <Text style={styles.noteCardTitle}>{note.title}</Text>
+                        <Text numberOfLines={2} style={styles.noteCardContent}>
+                          {note.content}
+                        </Text>
+                      </GlassPanel>
+                    </Pressable>
+                  </SwipeableCard>
                 ))}
               </View>
             ) : (

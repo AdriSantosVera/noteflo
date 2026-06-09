@@ -19,6 +19,9 @@ type NoteRow = {
   updated_at: string;
   checklist_items: unknown[] | null;
   tags: string[] | null;
+  latitude: number | null;
+  longitude: number | null;
+  location_name: string | null;
 };
 
 const createNoteSchema = z.object({
@@ -32,6 +35,9 @@ const createNoteSchema = z.object({
   endDate: z.string().trim().nullable().optional(),
   start_date: z.string().trim().nullable().optional(),
   end_date: z.string().trim().nullable().optional(),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
+  location_name: z.string().trim().nullable().optional(),
 });
 
 const notesListQuery = `
@@ -44,6 +50,9 @@ const notesListQuery = `
     n.color,
     n.start_date,
     n.end_date,
+    n.latitude,
+    n.longitude,
+    n.location_name,
     n.created_at,
     n.updated_at,
     COALESCE(
@@ -84,6 +93,9 @@ function mapNote(row: NoteRow) {
     end_date: row.end_date,
     startDate: row.start_date,
     endDate: row.end_date,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    location_name: row.location_name,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     checklistItems: row.checklist_items ?? [],
@@ -134,6 +146,9 @@ export async function POST(request: Request) {
       endDate,
       start_date,
       end_date,
+      latitude,
+      longitude,
+      location_name,
     } = result.data;
     const normalizedStartDate = start_date ?? startDate ?? null;
     const normalizedEndDate = end_date ?? endDate ?? null;
@@ -147,13 +162,16 @@ export async function POST(request: Request) {
       color: string | null;
       start_date: string | null;
       end_date: string | null;
+      latitude: number | null;
+      longitude: number | null;
+      location_name: string | null;
       created_at: string;
       updated_at: string;
     }>(
       `
-        INSERT INTO notes (user_id, title, type, content, color, start_date, end_date)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id, user_id, title, type, content, color, start_date, end_date, created_at, updated_at
+        INSERT INTO notes (user_id, title, type, content, color, start_date, end_date, latitude, longitude, location_name)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING id, user_id, title, type, content, color, start_date, end_date, latitude, longitude, location_name, created_at, updated_at
       `,
       [
         user_id,
@@ -163,6 +181,9 @@ export async function POST(request: Request) {
         color ?? null,
         normalizedStartDate,
         normalizedEndDate,
+        latitude ?? null,
+        longitude ?? null,
+        location_name ?? null,
       ],
     );
 
@@ -194,6 +215,9 @@ export async function POST(request: Request) {
         end_date: created.end_date,
         startDate: created.start_date,
         endDate: created.end_date,
+        latitude: created.latitude,
+        longitude: created.longitude,
+        location_name: created.location_name,
         createdAt: created.created_at,
         updatedAt: created.updated_at,
         checklistItems: [],

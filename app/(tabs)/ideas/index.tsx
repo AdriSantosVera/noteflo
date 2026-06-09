@@ -1,4 +1,5 @@
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -55,22 +56,26 @@ export default function IdeasIndexScreen() {
               />
             ) : ideaSource.length > 0 ? (
               <View style={styles.ideasGrid}>
-                {ideaSource.slice(0, 3).map((idea) => (
-                  <Pressable key={idea.id} onPress={() => router.push(`/(tabs)/ideas/${idea.id}`)} style={({ pressed }) => [styles.cardPressable, pressed ? styles.cardPressablePressed : null]}>
-                    <GlassPanel style={styles.ideaCard} contentStyle={styles.ideaCardContent}>
-                      <Text style={styles.ideaTitle}>{idea.title}</Text>
-                      <Text numberOfLines={2} style={styles.ideaSummary}>
-                        {idea.summary}
-                      </Text>
-                      <View style={styles.tagsWrap}>
-                        {(idea.tags ?? []).map((tag) => (
-                          <View key={tag} style={styles.tagChip}>
-                            <Text style={styles.tagChipText}>{tag}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </GlassPanel>
-                  </Pressable>
+                {ideaSource.slice(0, 3).map((idea, index) => (
+                  <View
+                    key={idea.id}
+                  >
+                    <Pressable onPress={() => router.push(`/(tabs)/ideas/${idea.id}`)} style={({ pressed }) => [styles.cardPressable, pressed ? styles.cardPressablePressed : null]}>
+                      <GlassPanel style={styles.ideaCard} contentStyle={styles.ideaCardContent}>
+                        <Text style={styles.ideaTitle}>{idea.title}</Text>
+                        <Text numberOfLines={2} style={styles.ideaSummary}>
+                          {idea.summary}
+                        </Text>
+                        <View style={styles.tagsWrap}>
+                          {(idea.tags ?? []).map((tag) => (
+                            <View key={tag} style={styles.tagChip}>
+                              <Text style={styles.tagChipText}>{tag}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </GlassPanel>
+                    </Pressable>
+                  </View>
                 ))}
               </View>
             ) : (

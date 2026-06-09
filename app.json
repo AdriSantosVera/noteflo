@@ -5,7 +5,22 @@
     "scheme": "noteflow",
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#6366F1",
+          "sounds": []
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "NoteFlow necesita tu ubicación para asociarla a tus notas.",
+          "locationWhenInUsePermission": "NoteFlow necesita tu ubicación para asociarla a tus notas."
+        }
+      ]
     ],
     "version": "1.0.0",
     "orientation": "portrait",
